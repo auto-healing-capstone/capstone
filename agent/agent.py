@@ -15,6 +15,6 @@ def update_metrics():
         time.sleep(2)
 
 if __name__ == "__main__":
-    start_http_server(8000)
-    print("Serving metrics at http://localhost:8000/metrics")
+    start_http_server(9100)
+    print("Serving metrics at http://localhost:9100/metrics")
     update_metrics()
