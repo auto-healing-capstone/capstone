@@ -7,4 +7,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # 나중에 Python Agent나 Nginx 서버를 연결할 때 이 아래에 추가
+  # 2. 로컬에서 실행 중인 Python agent 메트릭 수집
+  - job_name: 'agent'
+    static_configs:
+      - targets: ['host.docker.internal:8000'] # Docker 내부에서 호스트 PC의 8000 포트 접근
