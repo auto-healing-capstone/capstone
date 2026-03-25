@@ -7,6 +7,9 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
 
     # AI (OpenAI Function Calling을 위한 키)
     OPENAI_API_KEY: str
@@ -16,7 +19,11 @@ class Settings(BaseSettings):
     SLACK_CHANNEL_ID: str
 
     # .env 파일에서 변수들을 자동으로 읽어오도록 설정
-    model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        env_file_encoding="utf-8",
+        extra="ignore"  # .env에 정의되지 않은 변수는 무시 (안정성 강화)
+    )
 
 # 앱 전체에서 싱글톤처럼 사용할 수 있게 인스턴스화
 settings = Settings()
