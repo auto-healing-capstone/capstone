@@ -10,4 +10,4 @@ scrape_configs:
   # 2. 로컬에서 실행 중인 Python agent 메트릭 수집
   - job_name: 'agent'
     static_configs:
-      - targets: ['host.docker.internal:8000'] # Docker 내부에서 호스트 PC의 8000 포트 접근
+      - targets: ['host.docker.internal:9100'] # Docker 내부에서 호스트 PC의 9100 포트 접근

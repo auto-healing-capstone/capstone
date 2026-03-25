@@ -1,0 +1,35 @@
+services:
+  # 1. PostgreSQL (메인 데이터베이스)
+  db:
+    image: postgres:15
+    container_name: aiops_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432" # PostgreSQL 기본포트, 내 컴퓨터의 5432 포트와 컨테이너의 5432 포트를 연결
+    volumes:
+      - pgdata:/var/lib/postgresql/data # DB가 꺼져도 데이터가 날아가지 않게 저장
+
+  # 2. Target Server (장애 발생 및 복구 실험용 Nginx)
+  nginx_target:
+    image: nginx:latest
+    container_name: target_nginx
+    ports:
+      - "8080:80" # localhost:8080으로 접속하면 Nginx 화면이 나옴
+    # 나중에 FastAPI의 Docker SDK로 이 컨테이너를 죽이고 살릴 예정
+
+  # 3. Prometheus (모니터링)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aiops_prometheus
+    ports:
+      - "9090:9090" # Prometheus 기본 포트, localhost:9090으로 접속하면 프로메테우스 화면이 나옴
+    volumes:
+      # 프로메테우스 설정 파일을 컨테이너 안으로 넣어줌 (설정 파일은 따로 만들어야 함)
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml 
+
+volumes:
+  pgdata: # PostgreSQL 데이터를 저장할 가상 공간

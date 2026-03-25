@@ -1,0 +1,10 @@
+# Infrastructure & Automation
+docker
+psutil
+
+# AI & Time-series Forecasting (Predictive Healing)
+prophet
+pandas
+
+# Data Collection
+prometheus-client

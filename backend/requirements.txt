@@ -1,18 +1,15 @@
-# Web Framework
+# Web Framework & Core
 fastapi
 uvicorn[standard]
+pydantic-settings
 
 # Database (PostgreSQL)
 sqlalchemy
 psycopg2-binary
+alembic
 
-# AI & Data Science
-prophet
-pandas
+# AI Diagnosis (OpenAI)
 openai
 
-# Infrastructure & Automation
-docker
-
-# Monitoring
+# Monitoring (Metrics Export)
 prometheus-client
