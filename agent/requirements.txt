@@ -8,3 +8,4 @@ pandas
 
 # Data Collection
 prometheus-client
+requests

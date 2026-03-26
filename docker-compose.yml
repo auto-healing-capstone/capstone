@@ -29,7 +29,22 @@ services:
       - "9090:9090" # Prometheus 기본 포트, localhost:9090으로 접속하면 프로메테우스 화면이 나옴
     volumes:
       # 프로메테우스 설정 파일을 컨테이너 안으로 넣어줌 (설정 파일은 따로 만들어야 함)
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml 
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml 
+  
+  # 4. backend (FastAPI 애플리케이션)
+  backend:
+    build: 
+      context: ./backend
+    container_name: aiops_backend
+    volumes:
+      - ./backend/app:/app/app
+      - ./.env:/app/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    env_file:
+      - .env 
 
 volumes:
   pgdata: # PostgreSQL 데이터를 저장할 가상 공간

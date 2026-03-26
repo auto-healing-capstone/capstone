@@ -2,6 +2,8 @@
 fastapi
 uvicorn[standard]
 pydantic-settings
+requests
+httpx
 
 # Database (PostgreSQL)
 sqlalchemy
@@ -13,3 +15,6 @@ openai
 
 # Monitoring (Metrics Export)
 prometheus-client
+
+# Integrations (슬랙 연동)
+slack_sdk
