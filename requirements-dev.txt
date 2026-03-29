@@ -4,3 +4,4 @@
 # 로컬 개발 및 코드 정렬을 위한 보조 도구
 black
 pytest
+flake8

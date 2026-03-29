@@ -1,5 +1,10 @@
+# backend/app/models/schema.py
+from __future__ import annotations
+
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -14,8 +19,13 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
+
 from app.models.base import Base
+import app.models.alert_event  # noqa: F401, E402 — SQLAlchemy registry 등록용
+
+if TYPE_CHECKING:
+    from app.models.alert_event import AlertEvent  # Pylance 타입 힌트용만
 
 
 # ==========================================
@@ -100,6 +110,7 @@ class Incident(Base):
     parent = relationship("Incident", remote_side=[id], backref="children")
     predictions = relationship("Prediction", back_populates="incident")
     actions = relationship("RecoveryAction", back_populates="incident")
+    alert_events: Mapped[list["AlertEvent"]] = relationship(back_populates="incident")
 
     __table_args__ = (
         # 배열(ARRAY) 내부 값을 초고속으로 검색하기 위한 GIN 인덱스!
