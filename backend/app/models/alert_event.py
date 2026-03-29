@@ -12,6 +12,7 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.schema import Incident
 
+
 class AlertEvent(Base):
     __tablename__ = "alert_events"
 
@@ -41,9 +42,7 @@ class AlertEvent(Base):
     incident_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("incidents.id"), nullable=True, index=True
     )
-    incident: Mapped[Optional["Incident"]] = relationship(
-        back_populates="alert_events"
-    )
+    incident: Mapped[Optional["Incident"]] = relationship(back_populates="alert_events")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

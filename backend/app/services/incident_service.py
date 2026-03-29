@@ -54,11 +54,11 @@ def _find_existing_by_fingerprint(
 ) -> Optional[AlertEvent]:
     if not fingerprint:
         return None
-    
+
     stmt = (
         select(AlertEvent)
         .where(AlertEvent.fingerprint == fingerprint)
-        .where(AlertEvent.status == "firing")   # 진행 중인 것만 업데이트 대상
+        .where(AlertEvent.status == "firing")  # 진행 중인 것만 업데이트 대상
         .order_by(AlertEvent.starts_at.desc())
         .limit(1)
     )
@@ -96,17 +96,29 @@ def get_dummy_incidents(status: Optional[str] = None) -> list[IncidentRead]:
 
     all_incidents = [
         IncidentRead(
-            id=1, alert_name="HighCPU", severity="critical", status="firing",
-            instance="server-01", summary="CPU usage over 90%",
+            id=1,
+            alert_name="HighCPU",
+            severity="critical",
+            status="firing",
+            instance="server-01",
+            summary="CPU usage over 90%",
             description="CPU has been over 90% for 5 minutes.",
-            fingerprint="fp_001", starts_at=now, ends_at=None,
+            fingerprint="fp_001",
+            starts_at=now,
+            ends_at=None,
             created_at=now,
         ),
         IncidentRead(
-            id=2, alert_name="DiskFull", severity="warning", status="resolved",
-            instance="server-02", summary="Disk usage over 85%",
+            id=2,
+            alert_name="DiskFull",
+            severity="warning",
+            status="resolved",
+            instance="server-02",
+            summary="Disk usage over 85%",
             description="Disk /dev/sda1 is 87% full.",
-            fingerprint="fp_002", starts_at=now, ends_at=now,
+            fingerprint="fp_002",
+            starts_at=now,
+            ends_at=now,
             created_at=now,
         ),
     ]
