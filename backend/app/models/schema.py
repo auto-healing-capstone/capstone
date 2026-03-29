@@ -1,7 +1,10 @@
+# backend/app/models/schema.py
 from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -17,8 +20,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, relationship
+
 from app.models.base import Base
-from app.models.alert_event import AlertEvent  # noqa: E402
+import app.models.alert_event  # noqa: F401, E402 — SQLAlchemy registry 등록용
+
+if TYPE_CHECKING:
+    from app.models.alert_event import AlertEvent  # Pylance 타입 힌트용만
 
 
 # ==========================================

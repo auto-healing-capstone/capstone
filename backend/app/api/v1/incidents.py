@@ -2,9 +2,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 
-from app.db.session import get_db
 from app.schemas.incident import IncidentRead
 from app.services import incident_service
 
@@ -26,7 +24,6 @@ def list_incidents(
         pattern="^(firing|resolved)$",
         description="Status filter: firing | resolved",
     ),
-    db: Session = Depends(get_db),
 ) -> list[IncidentRead]:
     return incident_service.get_dummy_incidents(status=status)
 

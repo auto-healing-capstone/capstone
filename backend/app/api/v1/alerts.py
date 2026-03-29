@@ -22,7 +22,7 @@ def receive_alert(
     db: Session = Depends(get_db),
 ) -> list[IncidentRead]:
     try:
-        return incident_service.create_incidents_from_alert(payload, db)
+        return incident_service.create_alert_events_from_payload(payload, db)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

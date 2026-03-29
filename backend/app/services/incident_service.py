@@ -23,7 +23,7 @@ def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
     )
 
 
-def create_incidents_from_alert(
+def create_alert_events_from_payload(
     payload: AlertmanagerPayload,
     db: Session,
 ) -> list[IncidentRead]:
@@ -33,7 +33,7 @@ def create_incidents_from_alert(
         existing = _find_existing_by_fingerprint(alert.fingerprint, db)
 
         if existing:
-            _update_incident(existing, alert)
+            _update_alert_event(existing, alert)
             saved.append(existing)
         else:
             new_incident = _alert_to_orm(alert)
@@ -65,7 +65,7 @@ def _find_existing_by_fingerprint(
     return db.execute(stmt).scalar_one_or_none()
 
 
-def _update_incident(
+def _update_alert_event(
     existing: AlertEvent,
     alert: SingleAlert,
 ) -> None:
@@ -89,7 +89,11 @@ def get_incidents(
     return [IncidentRead.model_validate(e) for e in alert_events]  # ORM → Pydantic 변환
 
 
-def get_dummy_incidents(status: Optional[str] = None) -> list[IncidentRead]:
+def get_dummy_incidents(
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+) -> list[IncidentRead]:
     from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
@@ -124,5 +128,6 @@ def get_dummy_incidents(status: Optional[str] = None) -> list[IncidentRead]:
     ]
 
     if status:
-        return [i for i in all_incidents if i.status == status]  # ← 필터링 추가
-    return all_incidents
+        all_incidents = [i for i in all_incidents if i.status == status]
+
+    return all_incidents[skip : skip + limit]
