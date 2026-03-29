@@ -27,6 +27,7 @@ def list_incidents(
 ) -> list[IncidentRead]:
     return incident_service.get_dummy_incidents(status=status)
 
+
 # try:
 #     return incident_service.get_incidents(
 #         db, skip=skip, limit=limit, status=status
