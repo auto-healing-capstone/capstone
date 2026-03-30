@@ -1,6 +1,7 @@
 # 1. 파이썬 가상환경 
 venv/
 .venv/
+yjjang/
 env/
 __pycache__/
 *.py[cod]
