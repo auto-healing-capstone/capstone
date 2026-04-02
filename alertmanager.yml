@@ -4,4 +4,4 @@ route:
 receivers:
   - name: 'webhook-receiver'
     webhook_configs:
-      - url: 'http://host.docker.internal:8001/api/v1/alerts' # 백엔드 API 주소로 교체 예정
+      - url: 'http://host.docker.internal:8000/api/v1/alerts' # backend webhook endpoint
