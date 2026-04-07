@@ -131,7 +131,7 @@ class Prediction(Base):
     predicted_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    expected_breach = Column(DateTime(timezone=True), index=True, nullable=False)
+    expected_breach = Column(DateTime(timezone=True), index=True, nullable=True)
 
     confidence = Column(Float, nullable=True)
     is_verified = Column(Boolean, default=False)

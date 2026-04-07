@@ -54,16 +54,22 @@ def assess_risk(forecast: ForecastResponse, metric_type: str) -> RiskAssessment:
     if peak_yhat >= CRITICAL_THRESHOLD:
         severity = "CRITICAL"
         is_risky = True
+        breach_threshold = CRITICAL_THRESHOLD
     elif peak_yhat >= WARNING_THRESHOLD:
         severity = "HIGH"
         is_risky = True
+        breach_threshold = WARNING_THRESHOLD
     else:
         severity = "NONE"
         is_risky = False
-
-    expected_breach = next(
-        (point.ds for point in points if point.yhat > WARNING_THRESHOLD),
-        None,
+        breach_threshold = None
+    expected_breach = (
+        next(
+            (point.ds for point in points if point.yhat >= breach_threshold),
+            None,
+        )
+        if breach_threshold is not None
+        else None
     )
 
     if points:
