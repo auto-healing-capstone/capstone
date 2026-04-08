@@ -4,8 +4,10 @@ services:
     image: postgres:15
     container_name: aiops_postgres
     restart: always
-    env_file:
-      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432" # PostgreSQL 기본포트, 내 컴퓨터의 5432 포트와 컨테이너의 5432 포트를 연결
     volumes:
@@ -24,8 +26,6 @@ services:
     build:
       context: ./agent
     container_name: aiops_agent
-    env_file:
-      - .env
     environment:
       FORCE_CPU_USAGE: ${FORCE_CPU_USAGE:-}
       FORCE_MEMORY_USAGE: ${FORCE_MEMORY_USAGE:-}
