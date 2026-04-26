@@ -100,6 +100,23 @@ def get_incidents(
     return [IncidentRead.model_validate(i) for i in incidents]
 
 
+def get_alert_events(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    incident_id: Optional[int] = None,
+) -> list[AlertEventRead]:
+    stmt = select(AlertEvent).order_by(AlertEvent.starts_at.desc())
+    if status:
+        stmt = stmt.where(AlertEvent.status == status)
+    if incident_id is not None:
+        stmt = stmt.where(AlertEvent.incident_id == incident_id)
+    stmt = stmt.offset(skip).limit(limit)
+    alert_events = list(db.execute(stmt).scalars().all())
+    return [AlertEventRead.model_validate(e) for e in alert_events]
+
+
 def create_incident_from_llm_result(
     alert_events: list[AlertEvent],
     analysis: AnalysisResult,

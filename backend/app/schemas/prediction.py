@@ -2,7 +2,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.models.schema import MetricTypeEnum
 
 
 class ForecastPoint(BaseModel):
@@ -25,3 +27,16 @@ class RiskAssessment(BaseModel):
     peak_yhat: float
     expected_breach: Optional[datetime]
     confidence: float
+
+
+class PredictionRead(BaseModel):
+    id: int
+    incident_id: Optional[int] = None
+    target_node: str
+    metric_type: MetricTypeEnum
+    predicted_at: datetime
+    expected_breach: Optional[datetime] = None
+    confidence: Optional[float] = None
+    is_verified: bool
+
+    model_config = ConfigDict(from_attributes=True)
