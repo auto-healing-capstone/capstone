@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     SLACK_BOT_TOKEN: str = ""
     SLACK_CHANNEL_ID: str = ""
 
+    # Prometheus
+    PROMETHEUS_URL: str = "http://localhost:9090"
+
     # .env 파일에서 변수들을 자동으로 읽어오도록 설정
     model_config = SettingsConfigDict(
         env_file=str(ENV_PATH),  # .env 파일 경로 지정
