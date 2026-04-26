@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 
-logger = logging.getLogger(__name__)
-
 from app.integrations.prometheus import get_current_metrics
 from app.schemas.metrics import CurrentMetricsResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

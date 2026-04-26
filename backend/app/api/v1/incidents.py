@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from app.db.session import get_db
 from app.models.schema import StatusEnum
 from app.schemas.incident import IncidentRead
 from app.services import incident_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,7 +28,10 @@ def list_incidents(
     limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
     status: Optional[StatusEnum] = Query(
         default=None,
-        description="Status filter: DETECTED | ANALYZING | PENDING | RECOVERING | RESOLVED | FAILED",
+        description=(
+            "Status filter: DETECTED | ANALYZING | PENDING "
+            "| RECOVERING | RESOLVED | FAILED"
+        ),
     ),
     db: Session = Depends(get_db),
 ) -> list[IncidentRead]:

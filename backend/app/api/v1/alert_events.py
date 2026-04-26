@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from app.db.session import get_db
 from app.schemas.incident import AlertEventRead
 from app.services import incident_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
