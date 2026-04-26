@@ -1,4 +1,5 @@
 # backend/app/api/v1/alerts.py
+import asyncio
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _run_llm_background(alert_event_ids: list[int]) -> None:
+def _run_llm_background(alert_event_ids: list[int]) -> None:
     db = SessionLocal()
     try:
         alert_events = list(
@@ -30,7 +31,7 @@ async def _run_llm_background(alert_event_ids: list[int]) -> None:
         if not alert_events:
             logger.warning("No alert events found for ids: %s", alert_event_ids)
             return
-        analysis, action = await run_llm_pipeline(alert_events)
+        analysis, action = asyncio.run(run_llm_pipeline(alert_events))
         create_incident_from_llm_result(alert_events, analysis, action, db)
     except Exception:
         logger.error("LLM background pipeline failed", exc_info=True)

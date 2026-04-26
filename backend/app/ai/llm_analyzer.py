@@ -93,8 +93,10 @@ async def _call_analyze(user_message: str) -> AnalysisResult:
         tool_choice={"type": "function", "function": {"name": "analyze_incident"}},
     )
     tool_calls = response.choices[0].message.tool_calls
-    assert tool_calls is not None
-    assert isinstance(tool_calls[0], ChatCompletionMessageToolCall)
+    if not tool_calls:
+        raise RuntimeError("LLM returned no tool calls")
+    if not isinstance(tool_calls[0], ChatCompletionMessageToolCall):
+        raise RuntimeError(f"Unexpected tool call type: {type(tool_calls[0])}")
     args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
     return AnalysisResult(**args)
 
@@ -141,8 +143,10 @@ async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
         tool_choice={"type": "function", "function": {"name": "recommend_action"}},
     )
     tool_calls = response.choices[0].message.tool_calls
-    assert tool_calls is not None
-    assert isinstance(tool_calls[0], ChatCompletionMessageToolCall)
+    if not tool_calls:
+        raise RuntimeError("LLM returned no tool calls")
+    if not isinstance(tool_calls[0], ChatCompletionMessageToolCall):
+        raise RuntimeError(f"Unexpected tool call type: {type(tool_calls[0])}")
     args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
     return ActionResult(**args)
 

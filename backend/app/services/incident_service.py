@@ -123,20 +123,22 @@ def create_incident_from_llm_result(
     action: ActionResult,
     db: Session,
 ) -> None:
-    trigger_metrics = [
-        {
-            "alert_name": ae.alert_name,
-            "severity": ae.severity,
-            "status": ae.status,
-            "instance": ae.instance,
-            "summary": ae.summary,
-            "description": ae.description,
-            "fingerprint": ae.fingerprint,
-            "starts_at": ae.starts_at.isoformat(),
-            "ends_at": ae.ends_at.isoformat() if ae.ends_at else None,
-        }
-        for ae in alert_events
-    ]
+    trigger_metrics = {
+        "alerts": [
+            {
+                "alert_name": ae.alert_name,
+                "severity": ae.severity,
+                "status": ae.status,
+                "instance": ae.instance,
+                "summary": ae.summary,
+                "description": ae.description,
+                "fingerprint": ae.fingerprint,
+                "starts_at": ae.starts_at.isoformat(),
+                "ends_at": ae.ends_at.isoformat() if ae.ends_at else None,
+            }
+            for ae in alert_events
+        ]
+    }
 
     incident = Incident(
         incident_types=analysis.incident_types,

@@ -1,9 +1,12 @@
 # backend/app/api/v1/alert_events.py
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.schemas.incident import AlertEventRead
@@ -41,8 +44,9 @@ def list_alert_events(
             status=status,
             incident_id=incident_id,
         )
-    except Exception as exc:
+    except Exception:
+        logger.error("Failed to fetch alert events", exc_info=True)
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch alert events: {exc}",
+            detail="Internal server error",
         )

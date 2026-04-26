@@ -1,9 +1,12 @@
 # backend/app/api/v1/incidents.py
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.models.schema import StatusEnum
@@ -31,8 +34,9 @@ def list_incidents(
 ) -> list[IncidentRead]:
     try:
         return incident_service.get_incidents(db, skip=skip, limit=limit, status=status)
-    except Exception as exc:
+    except Exception:
+        logger.error("Failed to fetch incidents", exc_info=True)
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch incidents: {exc}",
+            detail="Internal server error",
         )

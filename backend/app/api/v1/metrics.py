@@ -1,8 +1,11 @@
 # backend/app/api/v1/metrics.py
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
+
+logger = logging.getLogger(__name__)
 
 from app.integrations.prometheus import get_current_metrics
 from app.schemas.metrics import CurrentMetricsResponse
@@ -24,8 +27,9 @@ def get_metrics_current() -> CurrentMetricsResponse:
             **data,
             collected_at=datetime.now(timezone.utc),
         )
-    except Exception as exc:
+    except Exception:
+        logger.error("Failed to fetch metrics", exc_info=True)
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch metrics: {exc}",
+            detail="Internal server error",
         )
