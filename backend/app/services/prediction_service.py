@@ -15,7 +15,7 @@ from app.models.schema import (
     SeverityEnum,
     StatusEnum,
 )
-from app.schemas.prediction import ForecastResponse, RiskAssessment
+from app.schemas.prediction import ForecastResponse, PredictionRead, RiskAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +136,25 @@ def save_proactive_incident(
 
     prediction.incident_id = incident.id
     return incident
+
+
+def get_predictions(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    metric_type: Optional[MetricTypeEnum] = None,
+    target_node: Optional[str] = None,
+) -> list[PredictionRead]:
+    from sqlalchemy import select
+
+    stmt = select(Prediction).order_by(Prediction.predicted_at.desc())
+    if metric_type:
+        stmt = stmt.where(Prediction.metric_type == metric_type)
+    if target_node:
+        stmt = stmt.where(Prediction.target_node == target_node)
+    stmt = stmt.offset(skip).limit(limit)
+    predictions = list(db.execute(stmt).scalars().all())
+    return [PredictionRead.model_validate(p) for p in predictions]
 
 
 def run_prediction_job(db: Session) -> None:

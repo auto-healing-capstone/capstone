@@ -1,3 +1,4 @@
+# backend/app/core/config.py
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,9 @@ class Settings(BaseSettings):
     # Slack (Human-in-the-loop 관리자 승인용)
     SLACK_BOT_TOKEN: str = ""
     SLACK_CHANNEL_ID: str = ""
+
+    # Prometheus
+    PROMETHEUS_URL: str = "http://localhost:9090"
 
     # .env 파일에서 변수들을 자동으로 읽어오도록 설정
     model_config = SettingsConfigDict(

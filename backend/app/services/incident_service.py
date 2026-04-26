@@ -1,12 +1,23 @@
 # backend/app/services/incident_service.py
+import logging
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.integrations.slack_client import send_approval_request
 from app.models.alert_event import AlertEvent
+from app.models.schema import (
+    ApprovalStatusEnum,
+    Incident,
+    RecoveryAction,
+    StatusEnum,
+)
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
-from app.schemas.incident import IncidentRead
+from app.schemas.incident import AlertEventRead, IncidentRead
+from app.schemas.llm_action import ActionResult, AnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
@@ -26,7 +37,7 @@ def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
 def create_alert_events_from_payload(
     payload: AlertmanagerPayload,
     db: Session,
-) -> list[IncidentRead]:
+) -> list[AlertEventRead]:
     saved: list[AlertEvent] = []
 
     for alert in payload.alerts:
@@ -45,7 +56,7 @@ def create_alert_events_from_payload(
     for incident in saved:
         db.refresh(incident)
 
-    return [IncidentRead.model_validate(i) for i in saved]
+    return [AlertEventRead.model_validate(i) for i in saved]
 
 
 def _find_existing_by_fingerprint(
@@ -79,55 +90,80 @@ def get_incidents(
     db: Session,
     skip: int = 0,
     limit: int = 100,
-    status: Optional[str] = None,
+    status: Optional[StatusEnum] = None,
 ) -> list[IncidentRead]:
-    stmt = select(AlertEvent)
+    stmt = select(Incident).order_by(Incident.detected_at.desc())
     if status:
-        stmt = stmt.where(AlertEvent.status == status)
-    stmt = stmt.order_by(AlertEvent.starts_at.desc()).offset(skip).limit(limit)
-    alert_events = list(db.execute(stmt).scalars().all())
-    return [IncidentRead.model_validate(e) for e in alert_events]  # ORM → Pydantic 변환
+        stmt = stmt.where(Incident.status == status)
+    stmt = stmt.offset(skip).limit(limit)
+    incidents = list(db.execute(stmt).scalars().all())
+    return [IncidentRead.model_validate(i) for i in incidents]
 
 
-def get_dummy_incidents(
+def get_alert_events(
+    db: Session,
     skip: int = 0,
     limit: int = 100,
     status: Optional[str] = None,
-) -> list[IncidentRead]:
-    from datetime import datetime, timezone
-
-    now = datetime.now(timezone.utc)
-
-    all_incidents = [
-        IncidentRead(
-            id=1,
-            alert_name="HighCPU",
-            severity="critical",
-            status="firing",
-            instance="server-01",
-            summary="CPU usage over 90%",
-            description="CPU has been over 90% for 5 minutes.",
-            fingerprint="fp_001",
-            starts_at=now,
-            ends_at=None,
-            created_at=now,
-        ),
-        IncidentRead(
-            id=2,
-            alert_name="DiskFull",
-            severity="warning",
-            status="resolved",
-            instance="server-02",
-            summary="Disk usage over 85%",
-            description="Disk /dev/sda1 is 87% full.",
-            fingerprint="fp_002",
-            starts_at=now,
-            ends_at=now,
-            created_at=now,
-        ),
-    ]
-
+    incident_id: Optional[int] = None,
+) -> list[AlertEventRead]:
+    stmt = select(AlertEvent).order_by(AlertEvent.starts_at.desc())
     if status:
-        all_incidents = [i for i in all_incidents if i.status == status]
+        stmt = stmt.where(AlertEvent.status == status)
+    if incident_id is not None:
+        stmt = stmt.where(AlertEvent.incident_id == incident_id)
+    stmt = stmt.offset(skip).limit(limit)
+    alert_events = list(db.execute(stmt).scalars().all())
+    return [AlertEventRead.model_validate(e) for e in alert_events]
 
-    return all_incidents[skip : skip + limit]
+
+def create_incident_from_llm_result(
+    alert_events: list[AlertEvent],
+    analysis: AnalysisResult,
+    action: ActionResult,
+    db: Session,
+) -> None:
+    trigger_metrics = {
+        "alerts": [
+            {
+                "alert_name": ae.alert_name,
+                "severity": ae.severity,
+                "status": ae.status,
+                "instance": ae.instance,
+                "summary": ae.summary,
+                "description": ae.description,
+                "fingerprint": ae.fingerprint,
+                "starts_at": ae.starts_at.isoformat(),
+                "ends_at": ae.ends_at.isoformat() if ae.ends_at else None,
+            }
+            for ae in alert_events
+        ]
+    }
+
+    incident = Incident(
+        incident_types=analysis.incident_types,
+        trigger_metrics=trigger_metrics,
+        target_node=alert_events[0].instance or "unknown",
+        status=StatusEnum.PENDING,
+        ai_title=analysis.ai_title,
+        ai_severity=analysis.ai_severity,
+        llm_analysis={"analysis": analysis.llm_analysis},
+    )
+    db.add(incident)
+    db.flush()
+
+    for ae in alert_events:
+        ae.incident_id = incident.id
+
+    recovery_action = RecoveryAction(
+        incident_id=incident.id,
+        action_type=action.action_type,
+        approval_status=ApprovalStatusEnum.PENDING,
+    )
+    db.add(recovery_action)
+    db.commit()
+
+    try:
+        send_approval_request(action.slack_summary)
+    except Exception:
+        logger.warning("Slack approval request failed", exc_info=True)
