@@ -15,7 +15,9 @@ ANALYZE_TOOL: ChatCompletionToolParam = {
                 "ai_severity": {
                     "type": "string",
                     "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-                    "description": "Assessed severity based on alert data and predictions.",
+                    "description": (
+                        "Assessed severity based on alert data and predictions."
+                    ),
                 },
                 "llm_analysis": {
                     "type": "string",

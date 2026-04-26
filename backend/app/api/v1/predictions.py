@@ -21,7 +21,9 @@ router = APIRouter()
     response_model=list[PredictionRead],
     status_code=http_status.HTTP_200_OK,
     summary="List predictions",
-    description="Return prediction history with optional metric_type and target_node filters.",
+    description=(
+        "Return prediction history with optional metric_type and target_node filters."
+    ),
 )
 def list_predictions(
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),

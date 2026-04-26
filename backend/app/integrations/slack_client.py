@@ -15,7 +15,8 @@ def send_approval_request(slack_summary: str) -> None:
 
     if not token or not channel:
         logger.warning(
-            "Slack notification skipped: SLACK_BOT_TOKEN or SLACK_CHANNEL_ID is not configured."
+            "Slack notification skipped: "
+            "SLACK_BOT_TOKEN or SLACK_CHANNEL_ID is not configured."
         )
         return
 
