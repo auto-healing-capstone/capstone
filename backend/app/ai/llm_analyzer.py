@@ -113,7 +113,10 @@ async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
         model=_MODEL,
         messages=[
             {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
-            {"role": "user", "content": "Analyze this incident and recommend a recovery action."},
+            {
+                "role": "user",
+                "content": "Analyze this incident and recommend a recovery action.",
+            },
             {
                 "role": "assistant",
                 "content": None,

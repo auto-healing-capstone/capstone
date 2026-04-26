@@ -10,19 +10,19 @@ ANALYZE_TOOL: ChatCompletionToolParam = {
             "properties": {
                 "ai_title": {
                     "type": "string",
-                    "description": "One-line incident title, 10 words or less."
+                    "description": "One-line incident title, 10 words or less.",
                 },
                 "ai_severity": {
                     "type": "string",
                     "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-                    "description": "Assessed severity based on alert data and predictions."
+                    "description": "Assessed severity based on alert data and predictions.",
                 },
                 "llm_analysis": {
                     "type": "string",
                     "description": (
                         "Structured analysis with three sections: "
                         "Observed symptom, Inferred cause, Risk assessment."
-                    )
+                    ),
                 },
                 "incident_types": {
                     "type": "array",
@@ -43,9 +43,9 @@ ANALYZE_TOOL: ChatCompletionToolParam = {
                     ),
                 },
             },
-            "required": ["ai_title", "ai_severity", "llm_analysis", "incident_types"]
-        }
-    }
+            "required": ["ai_title", "ai_severity", "llm_analysis", "incident_types"],
+        },
+    },
 }
 
 RECOMMEND_TOOL: ChatCompletionToolParam = {
@@ -63,23 +63,23 @@ RECOMMEND_TOOL: ChatCompletionToolParam = {
                         "CLEAR_LOGS",
                         "DOCKER_PRUNE",
                         "RESTART_PROCESS",
-                        "SCALE_OUT"
+                        "SCALE_OUT",
                     ],
-                    "description": "Recovery action type matching ActionTypeEnum."
+                    "description": "Recovery action type matching ActionTypeEnum.",
                 },
                 "reason": {
                     "type": "string",
-                    "description": "Why this action fits the diagnosed root cause."
+                    "description": "Why this action fits the diagnosed root cause.",
                 },
                 "slack_summary": {
                     "type": "string",
                     "description": (
                         "1-2 sentences for human operators in Slack. "
                         "States what happened and what action is proposed."
-                    )
+                    ),
                 },
             },
-            "required": ["action_type", "reason", "slack_summary"]
-        }
-    }
+            "required": ["action_type", "reason", "slack_summary"],
+        },
+    },
 }

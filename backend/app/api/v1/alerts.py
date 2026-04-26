@@ -23,9 +23,9 @@ async def _run_llm_background(alert_event_ids: list[int]) -> None:
     db = SessionLocal()
     try:
         alert_events = list(
-            db.execute(
-                select(AlertEvent).where(AlertEvent.id.in_(alert_event_ids))
-            ).scalars().all()
+            db.execute(select(AlertEvent).where(AlertEvent.id.in_(alert_event_ids)))
+            .scalars()
+            .all()
         )
         if not alert_events:
             logger.warning("No alert events found for ids: %s", alert_event_ids)

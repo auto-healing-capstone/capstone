@@ -27,7 +27,9 @@ def _query_metric(client: httpx.Client, metric_name: str) -> float | None:
             return float(result[0]["value"][1])
         return None
     except Exception:
-        logger.warning("Failed to query Prometheus metric: %s", metric_name, exc_info=True)
+        logger.warning(
+            "Failed to query Prometheus metric: %s", metric_name, exc_info=True
+        )
         return None
 
 
