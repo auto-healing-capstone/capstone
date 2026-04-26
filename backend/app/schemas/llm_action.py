@@ -1,2 +1,14 @@
 # app/schemas/llm_action.py
-# TODO: LLM 분석 결과 및 복구 액션 응답 스키마 정의 예정
+from app.models.schema import ActionTypeEnum, IncidentTypeEnum, SeverityEnum
+from pydantic import BaseModel
+
+class AnalysisResult(BaseModel):
+    ai_title: str
+    ai_severity: SeverityEnum
+    llm_analysis: str
+    incident_types: list[IncidentTypeEnum]
+
+class ActionResult(BaseModel):
+    action_type: ActionTypeEnum
+    reason: str
+    slack_summary: str

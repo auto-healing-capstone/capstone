@@ -1,9 +1,21 @@
+# backend/app/ai/llm_analyzer.py
+import json
 import logging
+from typing import Any
 
 from openai import AsyncOpenAI
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
 
+from app.ai.function_tools import ANALYZE_TOOL, RECOMMEND_TOOL
+from app.ai.prompts.analyze import ANALYZE_SYSTEM_PROMPT
+from app.ai.prompts.recommend import RECOMMEND_SYSTEM_PROMPT
 from app.core.config import settings
 from app.models.alert_event import AlertEvent
+from app.schemas.llm_action import ActionResult, AnalysisResult
+
+_MODEL = "gpt-4o-mini"
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +70,84 @@ def format_alert_event_for_llm(alert: AlertEvent) -> str:
         lines.append(f"Ended At: {alert.ends_at.isoformat()}")
 
     return "\n".join(lines)
+
+
+def format_alert_events_for_llm(alerts: list[AlertEvent]) -> str:
+    """Join multiple AlertEvents into numbered sections for LLM input."""
+    sections = [
+        f"[Alert {i}]\n{format_alert_event_for_llm(alert)}"
+        for i, alert in enumerate(alerts, start=1)
+    ]
+    return "\n\n".join(sections)
+
+
+async def _call_analyze(user_message: str) -> AnalysisResult:
+    client = get_openai_client()
+    response = await client.chat.completions.create(
+        model=_MODEL,
+        messages=[
+            {"role": "system", "content": ANALYZE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        tools=[ANALYZE_TOOL],
+        tool_choice={"type": "function", "function": {"name": "analyze_incident"}},
+    )
+    tool_calls = response.choices[0].message.tool_calls
+    assert tool_calls is not None
+    assert isinstance(tool_calls[0], ChatCompletionMessageToolCall)
+    args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    return AnalysisResult(**args)
+
+
+async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
+    client = get_openai_client()
+    # Serialize Step 1 result so the model sees it as a prior tool call in context
+    analysis_args = json.dumps(
+        {
+            "ai_title": analysis.ai_title,
+            "ai_severity": analysis.ai_severity.value,
+            "llm_analysis": analysis.llm_analysis,
+        }
+    )
+    response = await client.chat.completions.create(
+        model=_MODEL,
+        messages=[
+            {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
+            {"role": "user", "content": "Analyze this incident and recommend a recovery action."},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_analyze_0",
+                        "type": "function",
+                        "function": {
+                            "name": "analyze_incident",
+                            "arguments": analysis_args,
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "content": analysis_args,
+                "tool_call_id": "call_analyze_0",
+            },
+        ],
+        tools=[RECOMMEND_TOOL],
+        tool_choice={"type": "function", "function": {"name": "recommend_action"}},
+    )
+    tool_calls = response.choices[0].message.tool_calls
+    assert tool_calls is not None
+    assert isinstance(tool_calls[0], ChatCompletionMessageToolCall)
+    args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    return ActionResult(**args)
+
+
+async def run_llm_pipeline(
+    alert_events: list[AlertEvent],
+) -> tuple[AnalysisResult, ActionResult]:
+    user_message = format_alert_events_for_llm(alert_events)
+    analysis = await _call_analyze(user_message)
+    action = await _call_recommend(analysis)
+    return analysis, action

@@ -1,12 +1,23 @@
 # backend/app/services/incident_service.py
+import logging
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.integrations.slack_client import send_approval_request
 from app.models.alert_event import AlertEvent
+from app.models.schema import (
+    ApprovalStatusEnum,
+    Incident,
+    RecoveryAction,
+    StatusEnum,
+)
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
 from app.schemas.incident import IncidentRead
+from app.schemas.llm_action import ActionResult, AnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
@@ -87,6 +98,56 @@ def get_incidents(
     stmt = stmt.order_by(AlertEvent.starts_at.desc()).offset(skip).limit(limit)
     alert_events = list(db.execute(stmt).scalars().all())
     return [IncidentRead.model_validate(e) for e in alert_events]  # ORM → Pydantic 변환
+
+
+def create_incident_from_llm_result(
+    alert_events: list[AlertEvent],
+    analysis: AnalysisResult,
+    action: ActionResult,
+    db: Session,
+) -> None:
+    trigger_metrics = [
+        {
+            "alert_name": ae.alert_name,
+            "severity": ae.severity,
+            "status": ae.status,
+            "instance": ae.instance,
+            "summary": ae.summary,
+            "description": ae.description,
+            "fingerprint": ae.fingerprint,
+            "starts_at": ae.starts_at.isoformat(),
+            "ends_at": ae.ends_at.isoformat() if ae.ends_at else None,
+        }
+        for ae in alert_events
+    ]
+
+    incident = Incident(
+        incident_types=analysis.incident_types,
+        trigger_metrics=trigger_metrics,
+        target_node=alert_events[0].instance or "unknown",
+        status=StatusEnum.PENDING,
+        ai_title=analysis.ai_title,
+        ai_severity=analysis.ai_severity,
+        llm_analysis={"analysis": analysis.llm_analysis},
+    )
+    db.add(incident)
+    db.flush()
+
+    for ae in alert_events:
+        ae.incident_id = incident.id
+
+    recovery_action = RecoveryAction(
+        incident_id=incident.id,
+        action_type=action.action_type,
+        approval_status=ApprovalStatusEnum.PENDING,
+    )
+    db.add(recovery_action)
+    db.commit()
+
+    try:
+        send_approval_request(action.slack_summary)
+    except Exception:
+        logger.warning("Slack approval request failed", exc_info=True)
 
 
 def get_dummy_incidents(
