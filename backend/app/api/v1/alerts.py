@@ -10,7 +10,7 @@ from app.ai.llm_analyzer import run_llm_pipeline
 from app.db.session import SessionLocal, get_db
 from app.models.alert_event import AlertEvent
 from app.schemas.alert import AlertmanagerPayload
-from app.schemas.incident import IncidentRead
+from app.schemas.incident import AlertEventRead
 from app.services import incident_service
 from app.services.incident_service import create_incident_from_llm_result
 
@@ -40,7 +40,7 @@ async def _run_llm_background(alert_event_ids: list[int]) -> None:
 
 @router.post(
     "/alerts",
-    response_model=list[IncidentRead],
+    response_model=list[AlertEventRead],
     status_code=status.HTTP_201_CREATED,
     summary="Alertmanager webhook",
     description="Receive Alertmanager webhook alerts and persist them.",
@@ -49,7 +49,7 @@ def receive_alert(
     payload: AlertmanagerPayload,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-) -> list[IncidentRead]:
+) -> list[AlertEventRead]:
     try:
         alert_events = incident_service.create_alert_events_from_payload(payload, db)
         background_tasks.add_task(_run_llm_background, [r.id for r in alert_events])

@@ -14,7 +14,7 @@ from app.models.schema import (
     StatusEnum,
 )
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
-from app.schemas.incident import IncidentRead
+from app.schemas.incident import AlertEventRead, IncidentRead
 from app.schemas.llm_action import ActionResult, AnalysisResult
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
 def create_alert_events_from_payload(
     payload: AlertmanagerPayload,
     db: Session,
-) -> list[IncidentRead]:
+) -> list[AlertEventRead]:
     saved: list[AlertEvent] = []
 
     for alert in payload.alerts:
@@ -56,7 +56,7 @@ def create_alert_events_from_payload(
     for incident in saved:
         db.refresh(incident)
 
-    return [IncidentRead.model_validate(i) for i in saved]
+    return [AlertEventRead.model_validate(i) for i in saved]
 
 
 def _find_existing_by_fingerprint(
@@ -90,14 +90,14 @@ def get_incidents(
     db: Session,
     skip: int = 0,
     limit: int = 100,
-    status: Optional[str] = None,
+    status: Optional[StatusEnum] = None,
 ) -> list[IncidentRead]:
-    stmt = select(AlertEvent)
+    stmt = select(Incident).order_by(Incident.detected_at.desc())
     if status:
-        stmt = stmt.where(AlertEvent.status == status)
-    stmt = stmt.order_by(AlertEvent.starts_at.desc()).offset(skip).limit(limit)
-    alert_events = list(db.execute(stmt).scalars().all())
-    return [IncidentRead.model_validate(e) for e in alert_events]  # ORM → Pydantic 변환
+        stmt = stmt.where(Incident.status == status)
+    stmt = stmt.offset(skip).limit(limit)
+    incidents = list(db.execute(stmt).scalars().all())
+    return [IncidentRead.model_validate(i) for i in incidents]
 
 
 def create_incident_from_llm_result(
@@ -148,47 +148,3 @@ def create_incident_from_llm_result(
         send_approval_request(action.slack_summary)
     except Exception:
         logger.warning("Slack approval request failed", exc_info=True)
-
-
-def get_dummy_incidents(
-    skip: int = 0,
-    limit: int = 100,
-    status: Optional[str] = None,
-) -> list[IncidentRead]:
-    from datetime import datetime, timezone
-
-    now = datetime.now(timezone.utc)
-
-    all_incidents = [
-        IncidentRead(
-            id=1,
-            alert_name="HighCPU",
-            severity="critical",
-            status="firing",
-            instance="server-01",
-            summary="CPU usage over 90%",
-            description="CPU has been over 90% for 5 minutes.",
-            fingerprint="fp_001",
-            starts_at=now,
-            ends_at=None,
-            created_at=now,
-        ),
-        IncidentRead(
-            id=2,
-            alert_name="DiskFull",
-            severity="warning",
-            status="resolved",
-            instance="server-02",
-            summary="Disk usage over 85%",
-            description="Disk /dev/sda1 is 87% full.",
-            fingerprint="fp_002",
-            starts_at=now,
-            ends_at=now,
-            created_at=now,
-        ),
-    ]
-
-    if status:
-        all_incidents = [i for i in all_incidents if i.status == status]
-
-    return all_incidents[skip : skip + limit]
