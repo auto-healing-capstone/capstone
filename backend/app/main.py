@@ -5,7 +5,14 @@ import importlib
 from fastapi import FastAPI  # 서드파티
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import alert_events, alerts, incidents, metrics, predictions  # 로컬
+from app.api.v1 import (
+    alert_events,
+    alerts,
+    incidents,
+    metrics,
+    predictions,
+    actions,
+)  # 로컬
 from app.core.config import settings
 from app.scheduler import create_scheduler
 
@@ -46,6 +53,7 @@ app.include_router(incidents.router, prefix=API_V1_PREFIX, tags=["Incidents"])
 app.include_router(predictions.router, prefix=API_V1_PREFIX, tags=["Predictions"])
 app.include_router(alert_events.router, prefix=API_V1_PREFIX, tags=["Alert Events"])
 app.include_router(metrics.router, prefix=API_V1_PREFIX, tags=["Metrics"])
+app.include_router(actions.router, prefix=API_V1_PREFIX, tags=["Actions"])
 
 
 @app.get("/health", tags=["Health"])

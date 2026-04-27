@@ -92,7 +92,9 @@ RECOMMEND_TOOL: ChatCompletionToolParam = {
                     "properties": {
                         "mem_limit": {
                             "type": "string",
-                            "description": "Memory limit for SCALE_OUT (e.g. '512m', '1g').",
+                            "description": (
+                                "Memory limit for SCALE_OUT " "(e.g. '512m', '1g')."
+                            ),
                         },
                         "cpu_quota": {
                             "type": "integer",
