@@ -5,12 +5,15 @@ healing_service.py 에서 action_type + params dict 로 호출하거나
 CLI 에서 직접 실행 가능.
 
 지원 액션:
-  update_resources   --container <name> [--memory 512m] [--cpus 1.5]
-  reload_nginx       --container <name> [--config /path/to/conf]
-  restart_container  --container <name>
-  update_db_config   --container <name> --param <param> --value <val>
-  cleanup_logs       --container <name> [--path /var/log]
-  cleanup_disk       --container <name> [--path /tmp]
+  update_resources      --container <name> [--memory 512m] [--cpus 1.5]
+  reload_nginx          --container <name> [--config /path/to/conf]
+  restart_container     --container <name>
+  update_db_config      --container <name> --param <param> --value <val>
+  cleanup_logs          --container <name> [--path /var/log]
+  cleanup_disk          --container <name> [--path /tmp]
+  simulate_nginx_5xx    [--duration 30] [--nginx-url http://localhost:8080]
+  simulate_conn_pool    [--connections 20] [--duration 30]
+  simulate_oom          --container <name> [--limit 64m]
 
 CLI 예시:
   python run_recovery.py update_resources --container aiops_postgres --memory 1g
@@ -33,6 +36,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from update_resources import update_resources
 from reload_nginx import reload_nginx
 from update_db_config import update_db_config
+from simulate_nginx_5xx import simulate_nginx_5xx
+from simulate_connection_pool import simulate_connection_pool
+from simulate_oom import simulate_oom
 
 
 # ── 개별 액션 함수 ──────────────────────────────────────────────────────────
@@ -102,6 +108,17 @@ _ACTIONS: dict[str, object] = {
     ),
     "cleanup_disk":      lambda p: cleanup_disk(
         p["container"], p.get("path", "/tmp")
+    ),
+    "simulate_nginx_5xx": lambda p: simulate_nginx_5xx(
+        p.get("duration", 30), p.get("nginx_url", "http://localhost:8080"),
+        p.get("restore", True),
+    ),
+    "simulate_conn_pool": lambda p: simulate_connection_pool(
+        p.get("connections", 20), p.get("duration", 30),
+    ),
+    "simulate_oom":      lambda p: simulate_oom(
+        p.get("container", "target_nginx"), p.get("limit", "64m"),
+        p.get("restore", True),
     ),
 }
 

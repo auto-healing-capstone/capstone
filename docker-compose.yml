@@ -25,6 +25,14 @@ services:
       - ./infra/nginx:/etc/nginx/conf.d  # nginx 설정 핫 리로드용 볼륨 마운트
     # 나중에 FastAPI의 Docker SDK로 이 컨테이너를 죽이고 살릴 예정
 
+  # 2-1. Upstream App (Nginx 5xx 시나리오 실험용 업스트림 서버)
+  upstream_app:
+    image: python:3.11-slim
+    container_name: upstream_app
+    command: python -m http.server 80
+    ports:
+      - "8081:80"
+
   # 3. 메트릭 에이전트 (Prometheus가 scrape할 프로미터 메트릭 노출)
   agent:
     build:
@@ -38,6 +46,7 @@ services:
       - ./agent:/app
       - ./infra:/infra
       - /var/run/docker.sock:/var/run/docker.sock  # 컨테이너 메트릭 수집용 Docker socket
+      - /tmp/auto-healing-scenarios:/tmp/auto-healing-scenarios
     working_dir: /app
     command: python agent.py
     ports:
