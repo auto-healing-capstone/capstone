@@ -77,7 +77,7 @@ def simulate_nginx_5xx(
         print(f"  [{i+1:3d}s] HTTP {code}  (5xx 누적: {five_xx_count})")
         time.sleep(1)
 
-    result_msg = f"Nginx 5xx 시뮬레이션 완료 — 5xx 감지 {five_xx_count}건"
+    result_msg = f"Nginx 5xx 시뮬레이션 완료 - 5xx 감지 {five_xx_count}건"
 
     if restore:
         print(f"[3] upstream_app 재시작 → 복구")

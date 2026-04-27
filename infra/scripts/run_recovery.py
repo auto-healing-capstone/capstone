@@ -101,7 +101,8 @@ _ACTIONS: dict[str, object] = {
     ),
     "restart_container": lambda p: restart_container(p["container"]),
     "update_db_config":  lambda p: update_db_config(
-        p["container"], p["param"], p["value"], p.get("db_user", "postgres")
+        p["container"], p["param"], p["value"],
+        p.get("db_user", "postgres"), p.get("db_name", "postgres"),
     ),
     "cleanup_logs":      lambda p: cleanup_logs(
         p["container"], p.get("path", "/var/log")

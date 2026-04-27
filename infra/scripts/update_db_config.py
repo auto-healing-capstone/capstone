@@ -46,6 +46,7 @@ def update_db_config(
     param: str,
     value: str,
     db_user: str = "postgres",
+    db_name: str = "postgres",
 ) -> tuple[bool, str]:
     """
     ALTER SYSTEM 으로 PostgreSQL 파라미터 변경.
@@ -61,7 +62,7 @@ def update_db_config(
     """
     def _psql(sql: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            ["docker", "exec", container, "psql", "-U", db_user, "-c", sql],
+            ["docker", "exec", container, "psql", "-U", db_user, "-d", db_name, "-c", sql],
             capture_output=True, text=True, timeout=15,
         )
 
@@ -98,11 +99,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--param", required=True, help="파라미터 이름 (예: max_connections)")
     p.add_argument("--value", required=True, help="새 값 (예: 200, 16MB)")
     p.add_argument("--db-user", default="postgres", dest="db_user")
+    p.add_argument("--db-name", default="postgres", dest="db_name")
     return p.parse_args(argv)
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    ok, msg = update_db_config(args.container, args.param, args.value, args.db_user)
+    ok, msg = update_db_config(args.container, args.param, args.value, args.db_user, args.db_name)
     print(msg)
     sys.exit(0 if ok else 1)
