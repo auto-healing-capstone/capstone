@@ -1,6 +1,6 @@
 # app/schemas/llm_action.py
 from app.models.schema import ActionTypeEnum, IncidentTypeEnum, SeverityEnum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnalysisResult(BaseModel):
@@ -14,4 +14,4 @@ class ActionResult(BaseModel):
     action_type: ActionTypeEnum
     reason: str
     slack_summary: str
-    params: dict = {}
+    params: dict = Field(default_factory=dict)

@@ -21,16 +21,18 @@ def get_recovery_actions(
     page_size: int = 20,
     status: Optional[ApprovalStatusEnum] = None,
 ) -> RecoveryActionListResponse:
-    query = select(RecoveryAction)
+    base_query = select(RecoveryAction)
     if status is not None:
-        query = query.where(RecoveryAction.approval_status == status)
-    query = query.order_by(RecoveryAction.id.desc())
+        base_query = base_query.where(RecoveryAction.approval_status == status)
 
-    total = db.execute(select(func.count()).select_from(query.subquery())).scalar_one()
+    total = db.execute(
+        select(func.count()).select_from(base_query.subquery())
+    ).scalar_one()
     total_pages = math.ceil(total / page_size) if total > 0 else 1
 
+    data_query = base_query.order_by(RecoveryAction.id.desc())
     rows = (
-        db.execute(query.offset((page - 1) * page_size).limit(page_size))
+        db.execute(data_query.offset((page - 1) * page_size).limit(page_size))
         .scalars()
         .all()
     )
@@ -56,6 +58,8 @@ def approve_recovery_action(
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
 
+    # TODO: approved_at/approved_by를 reject에도 재사용 중
+    # 추후 reviewed_at/reviewed_by로 중립적 필드명으로 개선 필요
     action.approval_status = ApprovalStatusEnum.APPROVED
     action.approved_at = datetime.now(timezone.utc)
     action.approved_by = approved_by
@@ -78,6 +82,8 @@ def reject_recovery_action(
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
 
+    # TODO: approved_at/approved_by를 reject에도 재사용 중
+    # 추후 reviewed_at/reviewed_by로 중립적 필드명으로 개선 필요
     action.approval_status = ApprovalStatusEnum.REJECTED
     action.approved_at = datetime.now(timezone.utc)
     action.approved_by = rejected_by
@@ -89,6 +95,7 @@ def reject_recovery_action(
 
 
 def execute_recovery(recovery_action_id: int, db: Session) -> bool:
+    # TODO: /heal 엔드포인트 인증/인가 추가 필요 (admin token 등)
     recovery_action = db.execute(
         select(RecoveryAction).where(RecoveryAction.id == recovery_action_id)
     ).scalar_one_or_none()
@@ -105,6 +112,10 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         )
         return False
 
+    if recovery_action.executed_at is not None:
+        logger.warning("RecoveryAction id=%s already executed", recovery_action_id)
+        return False
+
     incident = recovery_action.incident
     if incident is None:
         logger.error("RecoveryAction id=%s has no linked incident", recovery_action_id)
@@ -116,7 +127,11 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     if action_type == ActionTypeEnum.RESTART_CONTAINER:
         is_successful = restart_container(target_node)
     elif action_type == ActionTypeEnum.SCALE_OUT:
-        is_successful = update_container(target_node, **(recovery_action.params or {}))
+        allowed_keys = {"mem_limit", "cpu_quota"}
+        safe_params = {
+            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+        }
+        is_successful = update_container(target_node, **safe_params)
     elif action_type in (
         ActionTypeEnum.CLEAR_LOGS,
         ActionTypeEnum.DOCKER_PRUNE,
@@ -130,16 +145,21 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
 
     recovery_action.executed_at = datetime.now(timezone.utc)
     recovery_action.is_successful = is_successful
-    recovery_action.log_snippet = (
+    new_log = (
         "Recovery executed successfully"
         if is_successful
         else "Recovery execution failed"
+    )
+    recovery_action.log_snippet = (
+        f"{recovery_action.log_snippet}\n{new_log}"
+        if recovery_action.log_snippet
+        else new_log
     )
 
     db.commit()
 
     try:
-        send_recovery_result(target_node, action_type, is_successful)
+        send_recovery_result(target_node, action_type.value, is_successful)
     except Exception:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 

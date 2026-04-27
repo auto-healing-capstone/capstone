@@ -57,6 +57,11 @@ def update_container(
             kwargs["mem_limit"] = mem_limit
         if cpu_quota is not None:
             kwargs["cpu_quota"] = cpu_quota
+        if not kwargs:
+            logger.error(
+                "No update parameters provided for container: %s", container_name
+            )
+            return False
         container.update(**kwargs)
         return True
     except docker.errors.NotFound:

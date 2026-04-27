@@ -3,6 +3,7 @@ import logging
 import httpx
 
 from app.core.config import settings
+from app.models.schema import ActionTypeEnum
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def send_approval_request(slack_summary: str) -> None:
 
 
 def send_recovery_result(
-    target_node: str, action_type: str, is_successful: bool
+    target_node: str, action_type: ActionTypeEnum, is_successful: bool
 ) -> None:
     token = settings.SLACK_BOT_TOKEN
     channel = settings.SLACK_CHANNEL_ID
@@ -57,7 +58,7 @@ def send_recovery_result(
     else:
         status_line = "❌ 복구 실패. 수동 확인이 필요합니다."
 
-    text = f"{status_line}\n" f"노드: {target_node} | 액션: {action_type}"
+    text = f"{status_line}\n노드: {target_node} | 액션: {action_type.value}"
 
     response = httpx.post(
         _SLACK_API_URL,
