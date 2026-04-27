@@ -39,6 +39,10 @@ from update_db_config import update_db_config
 from simulate_nginx_5xx import simulate_nginx_5xx
 from simulate_connection_pool import simulate_connection_pool
 from simulate_oom import simulate_oom
+from simulate_deadlock import simulate_deadlock
+from simulate_zombie import simulate_zombie
+from simulate_fd_exhaustion import simulate_fd_exhaustion
+from simulate_memory_leak import simulate_memory_leak
 
 
 # ── 개별 액션 함수 ──────────────────────────────────────────────────────────
@@ -120,6 +124,21 @@ _ACTIONS: dict[str, object] = {
     "simulate_oom":      lambda p: simulate_oom(
         p.get("container", "target_nginx"), p.get("limit", "64m"),
         p.get("restore", True),
+    ),
+    "simulate_deadlock":     lambda p: simulate_deadlock(
+        p.get("rounds", 3),
+        p.get("container", "aiops_postgres"),
+        p.get("user", "aiops_user"),
+        p.get("db", "aiops_db"),
+    ),
+    "simulate_zombie":       lambda p: simulate_zombie(
+        p.get("container", "upstream_app"), p.get("duration", 30), p.get("count", 8),
+    ),
+    "simulate_fd_exhaustion": lambda p: simulate_fd_exhaustion(
+        p.get("container", "upstream_app"), p.get("duration", 30),
+    ),
+    "simulate_memory_leak":  lambda p: simulate_memory_leak(
+        p.get("container", "upstream_app"), p.get("target_mb", 200), p.get("hold", 30),
     ),
 }
 

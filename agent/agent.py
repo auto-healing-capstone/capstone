@@ -15,6 +15,10 @@ nginx_5xx_total = Gauge("infra_nginx_5xx_total", "Nginx 5xx error count during s
 db_active_connections = Gauge("infra_db_active_connections", "Active DB connections during simulation")
 db_max_connections = Gauge("infra_db_max_connections", "DB max_connections setting")
 container_oom_killed = Gauge("infra_container_oom_killed", "Number of OOM-killed containers")
+db_deadlock_count    = Gauge("infra_db_deadlock_count",    "DB deadlock count during simulation")
+zombie_process_count = Gauge("infra_zombie_process_count", "Zombie process count in container")
+fd_usage_ratio       = Gauge("infra_fd_usage_ratio",       "File descriptor usage ratio (0-1)")
+memory_leak_mb       = Gauge("infra_memory_leak_mb",       "Simulated memory leak size in MB")
 
 LOAD_TEST_STATUS_FILE = os.getenv("LOAD_TEST_STATUS_FILE", "/tmp/auto-healing-load-test/status.json")
 SCENARIO_STATUS_FILE = os.getenv("SCENARIO_STATUS_FILE", "/tmp/auto-healing-scenarios/status.json")
@@ -46,6 +50,10 @@ def update_scenario_metrics() -> None:
         db_active_connections.set(float(payload.get("db_active_connections", 0)))
         db_max_connections.set(float(payload.get("db_max_connections", 0)))
         container_oom_killed.set(float(payload.get("container_oom_killed", 0)))
+        db_deadlock_count.set(float(payload.get("db_deadlock_count", 0)))
+        zombie_process_count.set(float(payload.get("zombie_process_count", 0)))
+        fd_usage_ratio.set(float(payload.get("fd_usage_ratio", 0)))
+        memory_leak_mb.set(float(payload.get("memory_leak_mb", 0)))
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         pass
 

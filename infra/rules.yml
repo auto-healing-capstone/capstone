@@ -85,3 +85,49 @@ groups:
       annotations:
         summary: "컨테이너 OOM Kill 감지"
         description: "OOM Kill 발생 컨테이너 수: {{ $value }}"
+
+  - name: advanced-scenario-alerts
+    rules:
+    - alert: DBDeadlockDetected
+      expr: infra_db_deadlock_count > 0
+      for: 5s
+      labels:
+        severity: critical
+        source: postgres
+        action: restart_container
+      annotations:
+        summary: "DB 데드락 감지"
+        description: "데드락 발생 횟수: {{ $value }}"
+
+    - alert: ZombieProcessAccumulation
+      expr: infra_zombie_process_count >= 3
+      for: 10s
+      labels:
+        severity: warning
+        source: docker
+        action: restart_container
+      annotations:
+        summary: "좀비 프로세스 누적"
+        description: "좀비 프로세스 수: {{ $value }}"
+
+    - alert: FDExhaustionRisk
+      expr: infra_fd_usage_ratio >= 0.8
+      for: 10s
+      labels:
+        severity: critical
+        source: docker
+        action: restart_container
+      annotations:
+        summary: "파일 디스크립터 고갈 위험"
+        description: "FD 사용률: {{ $value | humanizePercentage }}"
+
+    - alert: MemoryLeakDetected
+      expr: infra_memory_leak_mb > 100
+      for: 15s
+      labels:
+        severity: warning
+        source: docker
+        action: update_resources
+      annotations:
+        summary: "메모리 누수 감지"
+        description: "누수 추정량: {{ $value }}MB"
