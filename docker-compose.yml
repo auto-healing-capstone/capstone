@@ -40,6 +40,7 @@ services:
     container_name: aiops_backend
     volumes:
       - ./backend/app:/app/app
+      - /var/run/docker.sock:/var/run/docker.sock # Docker SDK가 호스트의 Docker 데몬과 통신할 수 있게 함
     ports:
       - "8000:8000"
     depends_on:
