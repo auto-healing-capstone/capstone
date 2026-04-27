@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Column,
@@ -19,7 +19,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 import app.models.alert_event  # noqa: F401, E402 — SQLAlchemy registry 등록용
@@ -144,24 +144,33 @@ class Prediction(Base):
 class RecoveryAction(Base):
     __tablename__ = "recovery_actions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, ForeignKey("incidents.id"), index=True, nullable=True)
-    prediction_id = Column(
-        Integer, ForeignKey("predictions.id"), index=True, nullable=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), index=True, nullable=True
+    )
+    prediction_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("predictions.id"), index=True, nullable=True
     )
 
-    action_type = Column(Enum(ActionTypeEnum), nullable=False)
+    action_type: Mapped[ActionTypeEnum] = mapped_column(
+        Enum(ActionTypeEnum), nullable=False
+    )
+    params: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # 🛡️ 승인 파이프라인 일원화!
-    approval_status = Column(
+    approval_status: Mapped[ApprovalStatusEnum] = mapped_column(
         Enum(ApprovalStatusEnum), default=ApprovalStatusEnum.PENDING, nullable=False
     )
-    approved_at = Column(DateTime(timezone=True), nullable=True)
-    approved_by = Column(String(100), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    approved_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
-    executed_at = Column(DateTime(timezone=True), nullable=True)
-    is_successful = Column(Boolean, nullable=True)
-    log_snippet = Column(Text, nullable=True)
+    executed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_successful: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    log_snippet: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # 🤝 Relationships
     incident = relationship("Incident", back_populates="actions")

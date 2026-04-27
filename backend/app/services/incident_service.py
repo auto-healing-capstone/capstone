@@ -159,6 +159,7 @@ def create_incident_from_llm_result(
         incident_id=incident.id,
         action_type=action.action_type,
         approval_status=ApprovalStatusEnum.PENDING,
+        params=action.params,
     )
     db.add(recovery_action)
     db.commit()

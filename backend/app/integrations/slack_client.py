@@ -37,3 +37,37 @@ def send_approval_request(slack_summary: str) -> None:
             response.status_code,
             response.text,
         )
+
+
+def send_recovery_result(
+    target_node: str, action_type: str, is_successful: bool
+) -> None:
+    token = settings.SLACK_BOT_TOKEN
+    channel = settings.SLACK_CHANNEL_ID
+
+    if not token or not channel:
+        logger.warning(
+            "Slack notification skipped: "
+            "SLACK_BOT_TOKEN or SLACK_CHANNEL_ID is not configured."
+        )
+        return
+
+    if is_successful:
+        status_line = "✅ 복구 완료"
+    else:
+        status_line = "❌ 복구 실패. 수동 확인이 필요합니다."
+
+    text = f"{status_line}\n" f"노드: {target_node} | 액션: {action_type}"
+
+    response = httpx.post(
+        _SLACK_API_URL,
+        headers={"Authorization": f"Bearer {token}"},
+        json={"channel": channel, "text": text},
+    )
+
+    if response.status_code != 200 or not response.json().get("ok"):
+        logger.warning(
+            "Slack API request failed: status=%s body=%s",
+            response.status_code,
+            response.text,
+        )

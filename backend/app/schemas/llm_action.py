@@ -14,3 +14,4 @@ class ActionResult(BaseModel):
     action_type: ActionTypeEnum
     reason: str
     slack_summary: str
+    params: dict = {}
