@@ -39,3 +39,9 @@ class Settings(BaseSettings):
 
 # 앱 전체에서 싱글톤처럼 사용할 수 있게 인스턴스화
 settings = Settings()
+
+# Prometheus instance 값 → Docker 컨테이너명 매핑
+# instance 형태: "host:port", 컨테이너명: docker-compose container_name
+TARGET_NODE_MAP: dict[str, str] = {
+    "agent:9100": "target_nginx",
+}

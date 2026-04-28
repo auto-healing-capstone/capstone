@@ -7,7 +7,14 @@ from typing import Optional
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.integrations.docker_client import restart_container, update_container
+from app.integrations.docker_client import (
+    clear_logs,
+    docker_prune,
+    restart_container,
+    restart_process,
+    update_container,
+)
+from app.core.config import TARGET_NODE_MAP
 from app.integrations.slack_client import send_recovery_result
 from app.models.schema import ActionTypeEnum, ApprovalStatusEnum, RecoveryAction
 from app.schemas.recovery_action import RecoveryActionListResponse, RecoveryActionRead
@@ -122,23 +129,27 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         return False
 
     target_node = incident.target_node
+    container_name = TARGET_NODE_MAP.get(target_node, target_node) or target_node
     action_type = recovery_action.action_type
 
     if action_type == ActionTypeEnum.RESTART_CONTAINER:
-        is_successful = restart_container(target_node)
+        is_successful = restart_container(container_name)
     elif action_type == ActionTypeEnum.SCALE_OUT:
         allowed_keys = {"mem_limit", "cpu_quota"}
         safe_params = {
             k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
         }
-        is_successful = update_container(target_node, **safe_params)
-    elif action_type in (
-        ActionTypeEnum.CLEAR_LOGS,
-        ActionTypeEnum.DOCKER_PRUNE,
-        ActionTypeEnum.RESTART_PROCESS,
-    ):
-        logger.warning("Action type not implemented: %s", action_type)
-        is_successful = False
+        is_successful = update_container(container_name, **safe_params)
+    elif action_type == ActionTypeEnum.CLEAR_LOGS:
+        is_successful = clear_logs(container_name)
+    elif action_type == ActionTypeEnum.DOCKER_PRUNE:
+        is_successful = docker_prune()
+    elif action_type == ActionTypeEnum.RESTART_PROCESS:
+        allowed_keys = {"process"}
+        safe_params = {
+            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+        }
+        is_successful = restart_process(container_name, **safe_params)
     else:
         logger.error("Unknown action type: %s", action_type)
         is_successful = False
@@ -159,7 +170,7 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     db.commit()
 
     try:
-        send_recovery_result(target_node, action_type, is_successful)
+        send_recovery_result(container_name, action_type, is_successful)
     except Exception:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 

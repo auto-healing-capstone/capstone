@@ -71,3 +71,78 @@ def update_container(
             "Docker API error updating container: %s", container_name, exc_info=True
         )
     return False
+
+
+def clear_logs(container_name: str) -> bool:
+    client = get_docker_client()
+    if client is None:
+        return False
+    try:
+        container = client.containers.get(container_name)
+        exit_code, output = container.exec_run("find /var/log -name '*.log' -delete")
+        if exit_code != 0:
+            logger.error(
+                "clear_logs failed for container %s (exit %d): %s",
+                container_name,
+                exit_code,
+                output,
+            )
+            return False
+        return True
+    except docker.errors.NotFound:
+        logger.error("Container not found: %s", container_name)
+    except docker.errors.APIError:
+        logger.error(
+            "Docker API error clearing logs for container: %s",
+            container_name,
+            exc_info=True,
+        )
+    return False
+
+
+def docker_prune() -> bool:
+    client = get_docker_client()
+    if client is None:
+        return False
+    try:
+        images_prune_result = client.images.prune()
+        volumes_prune_result = client.volumes.prune()
+        logger.info("Docker image prune completed: %s", images_prune_result)
+        logger.info("Docker volume prune completed: %s", volumes_prune_result)
+        return True
+    except docker.errors.APIError:
+        logger.error("Docker API error during prune", exc_info=True)
+    return False
+
+
+def restart_process(container_name: str, process: str = "nginx") -> bool:
+    client = get_docker_client()
+    if client is None:
+        return False
+    allowed_processes = {"nginx", "gunicorn", "uvicorn"}
+    if process not in allowed_processes:
+        logger.error("Process not allowed: %s", process)
+        return False
+    try:
+        container = client.containers.get(container_name)
+        exit_code, output = container.exec_run(f"sh -c 'kill -HUP $(pidof {process})'")
+        if exit_code != 0:
+            logger.error(
+                "restart_process failed for '%s' in container %s (exit %d): %s",
+                process,
+                container_name,
+                exit_code,
+                output,
+            )
+            return False
+        return True
+    except docker.errors.NotFound:
+        logger.error("Container not found: %s", container_name)
+    except docker.errors.APIError:
+        logger.error(
+            "Docker API error restarting process '%s' in container: %s",
+            process,
+            container_name,
+            exc_info=True,
+        )
+    return False
