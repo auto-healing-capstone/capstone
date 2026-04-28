@@ -1,5 +1,6 @@
 # backend/app/integrations/docker_client.py
 import logging
+import time
 from typing import Optional
 
 import docker
@@ -30,8 +31,12 @@ def restart_container(container_name: str) -> bool:
     if client is None:
         return False
     try:
+        start = time.perf_counter()
         container = client.containers.get(container_name)
         container.restart()
+        logger.info(
+            "[TIMING] restart_container completed in %.2fs", time.perf_counter() - start
+        )
         return True
     except docker.errors.NotFound:
         logger.error("Container not found: %s", container_name)
@@ -51,6 +56,7 @@ def update_container(
     if client is None:
         return False
     try:
+        start = time.perf_counter()
         container = client.containers.get(container_name)
         kwargs: dict = {}
         if mem_limit is not None:
@@ -63,6 +69,9 @@ def update_container(
             )
             return False
         container.update(**kwargs)
+        logger.info(
+            "[TIMING] update_container completed in %.2fs", time.perf_counter() - start
+        )
         return True
     except docker.errors.NotFound:
         logger.error("Container not found: %s", container_name)
@@ -78,6 +87,7 @@ def clear_logs(container_name: str) -> bool:
     if client is None:
         return False
     try:
+        start = time.perf_counter()
         container = client.containers.get(container_name)
         exit_code, output = container.exec_run("find /var/log -name '*.log' -delete")
         if exit_code != 0:
@@ -88,6 +98,9 @@ def clear_logs(container_name: str) -> bool:
                 output,
             )
             return False
+        logger.info(
+            "[TIMING] clear_logs completed in %.2fs", time.perf_counter() - start
+        )
         return True
     except docker.errors.NotFound:
         logger.error("Container not found: %s", container_name)
@@ -105,10 +118,14 @@ def docker_prune() -> bool:
     if client is None:
         return False
     try:
+        start = time.perf_counter()
         images_prune_result = client.images.prune()
         volumes_prune_result = client.volumes.prune()
         logger.info("Docker image prune completed: %s", images_prune_result)
         logger.info("Docker volume prune completed: %s", volumes_prune_result)
+        logger.info(
+            "[TIMING] docker_prune completed in %.2fs", time.perf_counter() - start
+        )
         return True
     except docker.errors.APIError:
         logger.error("Docker API error during prune", exc_info=True)
@@ -124,6 +141,7 @@ def restart_process(container_name: str, process: str = "nginx") -> bool:
         logger.error("Process not allowed: %s", process)
         return False
     try:
+        start = time.perf_counter()
         container = client.containers.get(container_name)
         exit_code, output = container.exec_run(f"sh -c 'kill -HUP $(pidof {process})'")
         if exit_code != 0:
@@ -135,6 +153,9 @@ def restart_process(container_name: str, process: str = "nginx") -> bool:
                 output,
             )
             return False
+        logger.info(
+            "[TIMING] restart_process completed in %.2fs", time.perf_counter() - start
+        )
         return True
     except docker.errors.NotFound:
         logger.error("Container not found: %s", container_name)
