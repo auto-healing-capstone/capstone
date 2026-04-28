@@ -14,6 +14,10 @@ CLI 에서 직접 실행 가능.
   simulate_nginx_5xx    [--duration 30] [--nginx-url http://localhost:8080]
   simulate_conn_pool    [--connections 20] [--duration 30]
   simulate_oom          --container <name> [--limit 64m]
+  simulate_deadlock     [--rounds 3] [--container aiops_postgres]
+  simulate_zombie       [--container upstream_app] [--duration 30] [--count 8]
+  simulate_fd_exhaustion [--container upstream_app] [--duration 30]
+  simulate_memory_leak  [--container upstream_app] [--target-mb 200] [--hold 30]
 
 CLI 예시:
   python run_recovery.py update_resources --container aiops_postgres --memory 1g
@@ -120,6 +124,8 @@ _ACTIONS: dict[str, object] = {
     ),
     "simulate_conn_pool": lambda p: simulate_connection_pool(
         p.get("connections", 20), p.get("duration", 30),
+        p.get("host", "localhost"), p.get("port", 5432),
+        p.get("user", "postgres"), p.get("password", ""), p.get("db", "postgres"),
     ),
     "simulate_oom":      lambda p: simulate_oom(
         p.get("container", "target_nginx"), p.get("limit", "64m"),
@@ -203,6 +209,45 @@ def _build_cli() -> argparse.ArgumentParser:
     cd = sub.add_parser("cleanup_disk", help="임시 파일 정리")
     cd.add_argument("--container", required=True)
     cd.add_argument("--path", default="/tmp")
+
+    nx = sub.add_parser("simulate_nginx_5xx", help="Nginx 5xx 에러 시뮬레이션")
+    nx.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
+    nx.add_argument("--nginx-url", dest="nginx_url", default="http://localhost:8080")
+    nx.add_argument("--no-restore", dest="restore", action="store_false", default=True)
+
+    cp = sub.add_parser("simulate_conn_pool", help="PostgreSQL 커넥션 풀 고갈 시뮬레이션")
+    cp.add_argument("--connections", type=int, default=20, help="동시 연결 시도 수")
+    cp.add_argument("--duration", type=int, default=30, help="연결 유지 시간(초)")
+    cp.add_argument("--host", default="localhost")
+    cp.add_argument("--port", type=int, default=5432)
+    cp.add_argument("--user", default="postgres")
+    cp.add_argument("--password", default="")
+    cp.add_argument("--db", default="postgres")
+
+    oom = sub.add_parser("simulate_oom", help="OOM Killer 시뮬레이션")
+    oom.add_argument("--container", default="target_nginx")
+    oom.add_argument("--limit", default="64m", help="설정할 메모리 제한")
+    oom.add_argument("--no-restore", dest="restore", action="store_false", default=True)
+
+    dl = sub.add_parser("simulate_deadlock", help="PostgreSQL DB 데드락 시뮬레이션")
+    dl.add_argument("--rounds", type=int, default=3, help="데드락 반복 횟수")
+    dl.add_argument("--container", default="aiops_postgres")
+    dl.add_argument("--user", default="aiops_user")
+    dl.add_argument("--db", default="aiops_db")
+
+    zb = sub.add_parser("simulate_zombie", help="좀비 프로세스 누적 시뮬레이션")
+    zb.add_argument("--container", default="upstream_app")
+    zb.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
+    zb.add_argument("--count", type=int, default=8, help="생성할 좀비 자식 프로세스 수")
+
+    fd = sub.add_parser("simulate_fd_exhaustion", help="파일 디스크립터 고갈 시뮬레이션")
+    fd.add_argument("--container", default="upstream_app")
+    fd.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
+
+    ml = sub.add_parser("simulate_memory_leak", help="점진적 메모리 누수 시뮬레이션")
+    ml.add_argument("--container", default="upstream_app")
+    ml.add_argument("--target-mb", dest="target_mb", type=int, default=200)
+    ml.add_argument("--hold", type=int, default=30, help="목표 도달 후 유지 시간(초)")
 
     return p
 
