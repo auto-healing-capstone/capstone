@@ -1,6 +1,7 @@
 # backend/app/main.py
 from contextlib import asynccontextmanager  # 표준 라이브러리
 import importlib
+import logging
 
 from fastapi import FastAPI  # 서드파티
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,15 +13,24 @@ from app.api.v1 import (
     metrics,
     predictions,
     actions,
+    sse,
 )  # 로컬
 from app.core.config import settings
 from app.scheduler import create_scheduler
 
 importlib.import_module("app.models.schema")  # noqa: F401 — ORM 모델 registry 등록용
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    key = settings.OPENAI_API_KEY
+    if not (key and key.startswith("sk-")):
+        logger.warning(
+            "OPENAI_API_KEY is not configured or invalid. "
+            "LLM features will be unavailable."
+        )
     scheduler = create_scheduler()
     scheduler.start()
     yield
@@ -54,6 +64,7 @@ app.include_router(predictions.router, prefix=API_V1_PREFIX, tags=["Predictions"
 app.include_router(alert_events.router, prefix=API_V1_PREFIX, tags=["Alert Events"])
 app.include_router(metrics.router, prefix=API_V1_PREFIX, tags=["Metrics"])
 app.include_router(actions.router, prefix=API_V1_PREFIX, tags=["Actions"])
+app.include_router(sse.router, tags=["SSE"])
 
 
 @app.get("/health", tags=["Health"])

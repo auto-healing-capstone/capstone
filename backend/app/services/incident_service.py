@@ -5,6 +5,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.events import broadcaster
 from app.integrations.slack_client import send_approval_request
 from app.models.alert_event import AlertEvent
 from app.models.schema import (
@@ -16,8 +17,11 @@ from app.models.schema import (
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
 from app.schemas.incident import AlertEventRead, IncidentRead
 from app.schemas.llm_action import ActionResult, AnalysisResult
+from app.schemas.recovery_action import RecoveryActionRead
 
 logger = logging.getLogger(__name__)
+
+_ALERT_STATUS_FIRING = "firing"
 
 
 def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
@@ -69,7 +73,9 @@ def _find_existing_by_fingerprint(
     stmt = (
         select(AlertEvent)
         .where(AlertEvent.fingerprint == fingerprint)
-        .where(AlertEvent.status == "firing")  # 진행 중인 것만 업데이트 대상
+        .where(
+            AlertEvent.status == _ALERT_STATUS_FIRING
+        )  # 진행 중인 것만 업데이트 대상
         .order_by(AlertEvent.starts_at.desc())
         .limit(1)
     )
@@ -149,22 +155,66 @@ def create_incident_from_llm_result(
         ai_severity=analysis.ai_severity,
         llm_analysis={"analysis": analysis.llm_analysis},
     )
-    db.add(incident)
-    db.flush()
+    try:
+        db.add(incident)
+        db.flush()
 
-    for ae in alert_events:
-        ae.incident_id = incident.id
+        for ae in alert_events:
+            ae.incident_id = incident.id
 
-    recovery_action = RecoveryAction(
-        incident_id=incident.id,
-        action_type=action.action_type,
-        approval_status=ApprovalStatusEnum.PENDING,
-        params=action.params,
-    )
-    db.add(recovery_action)
-    db.commit()
+        recovery_action = RecoveryAction(
+            incident_id=incident.id,
+            action_type=action.action_type,
+            approval_status=ApprovalStatusEnum.PENDING,
+            params=action.params,
+        )
+        db.add(recovery_action)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error("Incident creation transaction failed", exc_info=True)
+        raise
+
+    try:
+        broadcaster.broadcast(
+            "new_incident",
+            {
+                "incident_id": incident.id,
+                "ai_title": incident.ai_title,
+                "ai_severity": (
+                    incident.ai_severity.value if incident.ai_severity else None
+                ),
+                "status": incident.status.value,
+            },
+        )
+    except Exception:
+        logger.warning("SSE broadcast new_incident failed", exc_info=True)
 
     try:
         send_approval_request(action.slack_summary)
     except Exception:
         logger.warning("Slack approval request failed", exc_info=True)
+
+
+def get_incident(incident_id: int, db: Session) -> IncidentRead:
+    incident = db.execute(
+        select(Incident).where(Incident.id == incident_id)
+    ).scalar_one_or_none()
+    if incident is None:
+        raise ValueError(f"Incident not found: id={incident_id}")
+    return IncidentRead.model_validate(incident)
+
+
+def get_incident_recovery_actions(
+    incident_id: int, db: Session
+) -> list[RecoveryActionRead]:
+    rows = list(
+        db.execute(
+            select(RecoveryAction)
+            .where(RecoveryAction.incident_id == incident_id)
+            .order_by(RecoveryAction.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [RecoveryActionRead.model_validate(r) for r in rows]

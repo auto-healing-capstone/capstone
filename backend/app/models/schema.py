@@ -6,8 +6,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    Column,
-    Integer,
     String,
     Boolean,
     DateTime,
@@ -17,6 +15,7 @@ from sqlalchemy import (
     Float,
     CheckConstraint,
     Index,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,12 +40,12 @@ class IncidentTypeEnum(str, enum.Enum):
 
 
 class StatusEnum(str, enum.Enum):
-    DETECTED = "DETECTED"
-    ANALYZING = "ANALYZING"
-    PENDING = "PENDING"
-    RECOVERING = "RECOVERING"
-    RESOLVED = "RESOLVED"
-    FAILED = "FAILED"
+    DETECTED = "DETECTED"  # proactive: 예측 기반 장애 감지 시 초기 상태
+    ANALYZING = "ANALYZING"  # 현재 미사용 (향후 실시간 분석 상태 표시용으로 예약)
+    PENDING = "PENDING"  # LLM 분석 완료, Slack 승인 대기 중
+    RECOVERING = "RECOVERING"  # 관리자 승인 완료, 복구 실행 중
+    RESOLVED = "RESOLVED"  # 복구 성공
+    FAILED = "FAILED"  # 복구 실패
 
 
 class SeverityEnum(str, enum.Enum):
@@ -84,27 +83,35 @@ class ApprovalStatusEnum(str, enum.Enum):
 class Incident(Base):
     __tablename__ = "incidents"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     # 연쇄 장애를 위한 자기 참조 (Self-referencing FK)
-    parent_id = Column(Integer, ForeignKey("incidents.id"), index=True, nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), index=True, nullable=True
+    )
 
     # 복합 장애를 담는 ARRAY(ENUM)
-    incident_types = Column(ARRAY(Enum(IncidentTypeEnum)), nullable=False)
-    trigger_metrics = Column(JSONB, nullable=False)
+    incident_types: Mapped[list] = mapped_column(
+        ARRAY(Enum(IncidentTypeEnum)), nullable=False
+    )
+    trigger_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
-    target_node = Column(String(100), index=True, nullable=False)
-    detected_at = Column(
+    target_node: Mapped[str] = mapped_column(String(100), index=True)
+    detected_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    status = Column(
-        Enum(StatusEnum), default=StatusEnum.DETECTED, index=True, nullable=False
+    status: Mapped[StatusEnum] = mapped_column(
+        Enum(StatusEnum), default=StatusEnum.DETECTED, index=True
     )
 
-    ai_title = Column(String(200), nullable=True)
-    ai_severity = Column(Enum(SeverityEnum), index=True, nullable=True)
-    llm_analysis = Column(JSONB, nullable=True)
+    ai_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    ai_severity: Mapped[Optional[SeverityEnum]] = mapped_column(
+        Enum(SeverityEnum), index=True, nullable=True
+    )
+    llm_analysis: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
-    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # 🤝 Relationships (JOIN을 파이썬 객체처럼)
     parent = relationship("Incident", remote_side=[id], backref="children")
@@ -116,25 +123,31 @@ class Incident(Base):
         # 배열(ARRAY) 내부 값을 초고속으로 검색하기 위한 GIN 인덱스!
         Index("idx_incidents_types", "incident_types", postgresql_using="gin"),
         # 대시보드의 '최신순 정렬'을 위한 DESC 인덱스!
-        Index("idx_incidents_detected_at", detected_at.desc()),
+        Index("idx_incidents_detected_at", text("detected_at DESC")),
     )
 
 
 class Prediction(Base):
     __tablename__ = "predictions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, ForeignKey("incidents.id"), index=True, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), index=True, nullable=True
+    )
 
-    target_node = Column(String(100), index=True, nullable=False)
-    metric_type = Column(Enum(MetricTypeEnum), nullable=False)
-    predicted_at = Column(
+    target_node: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    metric_type: Mapped[MetricTypeEnum] = mapped_column(
+        Enum(MetricTypeEnum), nullable=False
+    )
+    predicted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    expected_breach = Column(DateTime(timezone=True), index=True, nullable=True)
+    expected_breach: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True
+    )
 
-    confidence = Column(Float, nullable=True)
-    is_verified = Column(Boolean, default=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # 🤝 Relationships
     incident = relationship("Incident", back_populates="predictions")

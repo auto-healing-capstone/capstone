@@ -1,6 +1,7 @@
 # backend/app/ai/llm_analyzer.py
 import json
 import logging
+import time
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -19,17 +20,19 @@ _MODEL = "gpt-4o-mini"
 
 logger = logging.getLogger(__name__)
 
-_PLACEHOLDER = "sk-your-openai-api-key-here"
-
 _client: AsyncOpenAI | None = None
 _client_key: str | None = None  # tracks the key used to build _client
+
+
+def _is_valid_api_key(key: str | None) -> bool:
+    return bool(key and key.startswith("sk-"))
 
 
 def get_openai_client() -> AsyncOpenAI:
     """Return the shared AsyncOpenAI client, reinitializing if the key changed."""
     global _client, _client_key
     key = settings.OPENAI_API_KEY
-    effective_key = key if (key and key != _PLACEHOLDER) else None
+    effective_key = key if _is_valid_api_key(key) else None
 
     # Reinitialize when a real key becomes available after a NOT_SET initialization
     if _client is not None and _client_key is None and effective_key is not None:
@@ -82,6 +85,7 @@ def format_alert_events_for_llm(alerts: list[AlertEvent]) -> str:
 
 
 async def _call_analyze(user_message: str) -> AnalysisResult:
+    start = time.perf_counter()
     client = get_openai_client()
     response = await client.chat.completions.create(
         model=_MODEL,
@@ -98,10 +102,14 @@ async def _call_analyze(user_message: str) -> AnalysisResult:
     if not isinstance(tool_calls[0], ChatCompletionMessageToolCall):
         raise RuntimeError(f"Unexpected tool call type: {type(tool_calls[0])}")
     args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    logger.info(
+        "[TIMING] LLM Step1 analyze completed in %.2fs", time.perf_counter() - start
+    )
     return AnalysisResult(**args)
 
 
 async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
+    start = time.perf_counter()
     client = get_openai_client()
     # Serialize Step 1 result so the model sees it as a prior tool call in context
     analysis_args = json.dumps(
@@ -148,13 +156,20 @@ async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
     if not isinstance(tool_calls[0], ChatCompletionMessageToolCall):
         raise RuntimeError(f"Unexpected tool call type: {type(tool_calls[0])}")
     args: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    logger.info(
+        "[TIMING] LLM Step2 recommend completed in %.2fs", time.perf_counter() - start
+    )
     return ActionResult(**args)
 
 
 async def run_llm_pipeline(
     alert_events: list[AlertEvent],
 ) -> tuple[AnalysisResult, ActionResult]:
+    start = time.perf_counter()
     user_message = format_alert_events_for_llm(alert_events)
     analysis = await _call_analyze(user_message)
     action = await _call_recommend(analysis)
+    logger.info(
+        "[TIMING] LLM pipeline total completed in %.2fs", time.perf_counter() - start
+    )
     return analysis, action

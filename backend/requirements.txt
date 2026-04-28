@@ -5,6 +5,7 @@ pydantic-settings
 requests
 httpx
 docker
+sse-starlette
 
 # Database (PostgreSQL)
 sqlalchemy

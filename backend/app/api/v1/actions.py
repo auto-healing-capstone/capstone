@@ -2,9 +2,10 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.schema import ApprovalStatusEnum
 from app.schemas.recovery_action import (
@@ -21,20 +22,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _require_heal_key(x_api_key: Optional[str] = Header(None)) -> None:
+    if not settings.HEAL_API_KEY or x_api_key != settings.HEAL_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+        )
+
+
 @router.get("/recovery-actions", response_model=RecoveryActionListResponse)
 def list_recovery_actions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    status: Optional[ApprovalStatusEnum] = Query(None),
+    approval_status: Optional[ApprovalStatusEnum] = Query(None),
     db: Session = Depends(get_db),
 ):
     try:
         return healing_service.get_recovery_actions(
-            db, page=page, page_size=page_size, status=status
+            db, page=page, page_size=page_size, status=approval_status
         )
     except Exception:
         logger.exception("Failed to list recovery actions")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post("/recovery-actions/{id}/approve", response_model=RecoveryActionRead)
@@ -51,10 +63,13 @@ def approve_recovery_action(
             db=db,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception:
         logger.exception("Failed to approve recovery action id=%s", id)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post("/recovery-actions/{id}/reject", response_model=RecoveryActionRead)
@@ -71,16 +86,20 @@ def reject_recovery_action(
             db=db,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception:
         logger.exception("Failed to reject recovery action id=%s", id)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post("/heal")
 def heal(
     body: HealRequest,
     db: Session = Depends(get_db),
+    _: None = Depends(_require_heal_key),
 ):
     try:
         success = healing_service.execute_recovery(body.recovery_action_id, db)
@@ -91,4 +110,7 @@ def heal(
         logger.exception(
             "Failed to execute recovery action id=%s", body.recovery_action_id
         )
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
