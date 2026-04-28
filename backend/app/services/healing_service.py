@@ -88,7 +88,7 @@ def approve_recovery_action(
     try:
         broadcaster.broadcast(
             "status_changed",
-            {"incident_id": action.incident_id, "status": "RECOVERING"},
+            {"incident_id": action.incident_id, "status": StatusEnum.RECOVERING.value},
         )
     except Exception:
         logger.warning("SSE broadcast status_changed failed", exc_info=True)

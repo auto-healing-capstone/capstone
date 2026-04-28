@@ -1,4 +1,5 @@
 # backend/app/api/v1/sse.py
+import json
 from typing import AsyncGenerator
 
 from fastapi import APIRouter
@@ -14,7 +15,7 @@ async def _event_stream() -> AsyncGenerator[dict, None]:
     try:
         while True:
             payload = await queue.get()
-            yield {"event": payload["event"], "data": str(payload["data"])}
+            yield {"event": payload["event"], "data": json.dumps(payload["data"])}
     finally:
         broadcaster.disconnect(queue)
 
