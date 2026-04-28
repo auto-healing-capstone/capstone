@@ -93,12 +93,18 @@ RECOMMEND_TOOL: ChatCompletionToolParam = {
                         "mem_limit": {
                             "type": "string",
                             "description": (
-                                "Memory limit for SCALE_OUT " "(e.g. '512m', '1g')."
+                                "Memory limit for SCALE_OUT (e.g. '512m', '1g')."
                             ),
                         },
                         "cpu_quota": {
                             "type": "integer",
                             "description": "CPU quota in microseconds for SCALE_OUT.",
+                        },
+                        "process": {
+                            "type": "string",
+                            "description": (
+                                "Process name for RESTART_PROCESS (e.g. 'nginx')."
+                            ),
                         },
                     },
                 },

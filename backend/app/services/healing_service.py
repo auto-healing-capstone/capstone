@@ -7,7 +7,13 @@ from typing import Optional
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.integrations.docker_client import restart_container, update_container
+from app.integrations.docker_client import (
+    clear_logs,
+    docker_prune,
+    restart_container,
+    restart_process,
+    update_container,
+)
 from app.integrations.slack_client import send_recovery_result
 from app.models.schema import ActionTypeEnum, ApprovalStatusEnum, RecoveryAction
 from app.schemas.recovery_action import RecoveryActionListResponse, RecoveryActionRead
@@ -132,13 +138,16 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
             k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
         }
         is_successful = update_container(target_node, **safe_params)
-    elif action_type in (
-        ActionTypeEnum.CLEAR_LOGS,
-        ActionTypeEnum.DOCKER_PRUNE,
-        ActionTypeEnum.RESTART_PROCESS,
-    ):
-        logger.warning("Action type not implemented: %s", action_type)
-        is_successful = False
+    elif action_type == ActionTypeEnum.CLEAR_LOGS:
+        is_successful = clear_logs(target_node)
+    elif action_type == ActionTypeEnum.DOCKER_PRUNE:
+        is_successful = docker_prune()
+    elif action_type == ActionTypeEnum.RESTART_PROCESS:
+        allowed_keys = {"process"}
+        safe_params = {
+            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+        }
+        is_successful = restart_process(target_node, **safe_params)
     else:
         logger.error("Unknown action type: %s", action_type)
         is_successful = False

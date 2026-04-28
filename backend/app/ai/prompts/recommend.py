@@ -19,7 +19,8 @@ Populate params based on the chosen action_type:
 - RESTART_CONTAINER : params must be an empty object {}
 - CLEAR_LOGS        : params must be an empty object {}
 - DOCKER_PRUNE      : params must be an empty object {}
-- RESTART_PROCESS   : params must be an empty object {}
+- RESTART_PROCESS   : params must include process name.
+                      e.g. {"process": "nginx"}
 - SCALE_OUT         : params must include at least one of:
     - mem_limit (string): new memory limit, e.g. "512m" or "1g"
     - cpu_quota (integer): CPU quota in microseconds.
