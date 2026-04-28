@@ -188,6 +188,8 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     )
     if incident is not None:
         incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
+        if is_successful:
+            incident.resolved_at = datetime.now(timezone.utc)
 
     db.commit()
 
