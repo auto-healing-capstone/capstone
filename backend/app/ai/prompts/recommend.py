@@ -14,6 +14,17 @@ appropriate recovery action, then call the recommend_action function.
 - RESTART_PROCESS   : Process is hung or unresponsive but container is healthy
 - SCALE_OUT         : Sustained CPU or memory pressure requiring more capacity
 
+## params field
+Populate params based on the chosen action_type:
+- RESTART_CONTAINER : params must be an empty object {}
+- CLEAR_LOGS        : params must be an empty object {}
+- DOCKER_PRUNE      : params must be an empty object {}
+- RESTART_PROCESS   : params must be an empty object {}
+- SCALE_OUT         : params must include at least one of:
+    - mem_limit (string): new memory limit, e.g. "512m" or "1g"
+    - cpu_quota (integer): CPU quota in microseconds.
+    e.g. 50000 (= 50 percent of one core, assuming default cpu_period=100000)
+
 ## Rules
 - You MUST respond by calling the recommend_action function only
 - Choose the action that most directly resolves the diagnosed root cause
