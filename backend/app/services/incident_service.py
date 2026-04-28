@@ -16,6 +16,7 @@ from app.models.schema import (
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
 from app.schemas.incident import AlertEventRead, IncidentRead
 from app.schemas.llm_action import ActionResult, AnalysisResult
+from app.schemas.recovery_action import RecoveryActionRead
 
 logger = logging.getLogger(__name__)
 
@@ -168,3 +169,27 @@ def create_incident_from_llm_result(
         send_approval_request(action.slack_summary)
     except Exception:
         logger.warning("Slack approval request failed", exc_info=True)
+
+
+def get_incident(incident_id: int, db: Session) -> IncidentRead:
+    incident = db.execute(
+        select(Incident).where(Incident.id == incident_id)
+    ).scalar_one_or_none()
+    if incident is None:
+        raise ValueError(f"Incident not found: id={incident_id}")
+    return IncidentRead.model_validate(incident)
+
+
+def get_incident_recovery_actions(
+    incident_id: int, db: Session
+) -> list[RecoveryActionRead]:
+    rows = list(
+        db.execute(
+            select(RecoveryAction)
+            .where(RecoveryAction.incident_id == incident_id)
+            .order_by(RecoveryAction.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [RecoveryActionRead.model_validate(r) for r in rows]
