@@ -37,10 +37,8 @@ async def get_forecast(type: str):
 
         clean_df = transform_to_prophet_df(raw)
 
-        # 1. 여기서 변수명을 forecast_df로 만드셨습니다!
         forecast_df = forecast_resource_usage(clean_df, periods=60)
 
-        # 2. 아래의 모든 'forecast'를 'forecast_df'로 교체합니다.
         peak_yhat = forecast_df['yhat'].max()
 
         threshold = 70.0
@@ -51,7 +49,6 @@ async def get_forecast(type: str):
         else:
             expected_time = None
 
-        # 여기도 forecast_df로 수정
         avg_spread = (forecast_df['yhat_upper'] - forecast_df['yhat_lower']).mean()
         confidence_score = max(0, 1 - (avg_spread / 100))
 
