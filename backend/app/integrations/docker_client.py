@@ -105,8 +105,10 @@ def docker_prune() -> bool:
     if client is None:
         return False
     try:
-        client.images.prune()
-        client.volumes.prune()
+        images_prune_result = client.images.prune()
+        volumes_prune_result = client.volumes.prune()
+        logger.info("Docker image prune completed: %s", images_prune_result)
+        logger.info("Docker volume prune completed: %s", volumes_prune_result)
         return True
     except docker.errors.APIError:
         logger.error("Docker API error during prune", exc_info=True)
@@ -117,9 +119,13 @@ def restart_process(container_name: str, process: str = "nginx") -> bool:
     client = get_docker_client()
     if client is None:
         return False
+    allowed_processes = {"nginx", "gunicorn", "uvicorn"}
+    if process not in allowed_processes:
+        logger.error("Process not allowed: %s", process)
+        return False
     try:
         container = client.containers.get(container_name)
-        exit_code, output = container.exec_run(f"kill -HUP $(pidof {process})")
+        exit_code, output = container.exec_run(f"sh -c 'kill -HUP $(pidof {process})'")
         if exit_code != 0:
             logger.error(
                 "restart_process failed for '%s' in container %s (exit %d): %s",

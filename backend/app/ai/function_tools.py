@@ -84,8 +84,9 @@ RECOMMEND_TOOL: ChatCompletionToolParam = {
                     "type": "object",
                     "description": (
                         "Action execution parameters. "
-                        "Empty object for RESTART_CONTAINER, CLEAR_LOGS, "
-                        "DOCKER_PRUNE, RESTART_PROCESS. "
+                        "Empty object for RESTART_CONTAINER, CLEAR_LOGS, DOCKER_PRUNE. "
+                        "For RESTART_PROCESS: optionally include process (string); "
+                        "defaults to 'nginx' if omitted. "
                         "For SCALE_OUT: include mem_limit (string, e.g. '512m') "
                         "and/or cpu_quota (integer, e.g. 50000)."
                     ),
