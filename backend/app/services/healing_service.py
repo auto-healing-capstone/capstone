@@ -159,7 +159,7 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     db.commit()
 
     try:
-        send_recovery_result(target_node, action_type.value, is_successful)
+        send_recovery_result(target_node, action_type, is_successful)
     except Exception:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 
