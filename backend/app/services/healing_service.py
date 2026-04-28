@@ -16,7 +16,7 @@ from app.integrations.docker_client import (
 )
 from app.core.config import TARGET_NODE_MAP
 from app.integrations.slack_client import send_recovery_result
-from app.models.schema import ActionTypeEnum, ApprovalStatusEnum, RecoveryAction
+from app.models.schema import ActionTypeEnum, ApprovalStatusEnum, Incident, RecoveryAction, StatusEnum
 from app.schemas.recovery_action import RecoveryActionListResponse, RecoveryActionRead
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,10 @@ def approve_recovery_action(
     action.approved_by = approved_by
     if reason:
         action.log_snippet = reason
+    if action.incident_id:
+        incident = db.get(Incident, action.incident_id)
+        if incident:
+            incident.status = StatusEnum.RECOVERING
     db.commit()
     db.refresh(action)
     return RecoveryActionRead.model_validate(action)
@@ -166,6 +170,8 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         if recovery_action.log_snippet
         else new_log
     )
+    if incident is not None:
+        incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
 
     db.commit()
 
