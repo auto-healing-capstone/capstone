@@ -22,12 +22,18 @@ class Settings(BaseSettings):
     # AI (OpenAI Function Calling을 위한 키)
     OPENAI_API_KEY: str = ""
 
+    # Heal API (POST /heal 엔드포인트 보호용)
+    HEAL_API_KEY: str = ""
+
     # Slack (Human-in-the-loop 관리자 승인용)
     SLACK_BOT_TOKEN: str = ""
     SLACK_CHANNEL_ID: str = ""
 
     # Prometheus
     PROMETHEUS_URL: str = "http://localhost:9090"
+
+    # Prediction server
+    PREDICTION_SERVER_URL: str = "http://localhost:8001"
 
     # .env 파일에서 변수들을 자동으로 읽어오도록 설정
     model_config = SettingsConfigDict(

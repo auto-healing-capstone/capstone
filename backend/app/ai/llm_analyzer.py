@@ -20,17 +20,19 @@ _MODEL = "gpt-4o-mini"
 
 logger = logging.getLogger(__name__)
 
-_PLACEHOLDER = "sk-your-openai-api-key-here"
-
 _client: AsyncOpenAI | None = None
 _client_key: str | None = None  # tracks the key used to build _client
+
+
+def _is_valid_api_key(key: str | None) -> bool:
+    return bool(key and key.startswith("sk-"))
 
 
 def get_openai_client() -> AsyncOpenAI:
     """Return the shared AsyncOpenAI client, reinitializing if the key changed."""
     global _client, _client_key
     key = settings.OPENAI_API_KEY
-    effective_key = key if (key and key != _PLACEHOLDER) else None
+    effective_key = key if _is_valid_api_key(key) else None
 
     # Reinitialize when a real key becomes available after a NOT_SET initialization
     if _client is not None and _client_key is None and effective_key is not None:

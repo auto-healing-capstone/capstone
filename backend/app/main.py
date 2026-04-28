@@ -1,6 +1,7 @@
 # backend/app/main.py
 from contextlib import asynccontextmanager  # 표준 라이브러리
 import importlib
+import logging
 
 from fastapi import FastAPI  # 서드파티
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +20,17 @@ from app.scheduler import create_scheduler
 
 importlib.import_module("app.models.schema")  # noqa: F401 — ORM 모델 registry 등록용
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    key = settings.OPENAI_API_KEY
+    if not (key and key.startswith("sk-")):
+        logger.warning(
+            "OPENAI_API_KEY is not configured or invalid. "
+            "LLM features will be unavailable."
+        )
     scheduler = create_scheduler()
     scheduler.start()
     yield

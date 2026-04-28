@@ -1,12 +1,12 @@
 # backend/app/services/prediction_service.py
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Optional
 
 import requests
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.schema import (
     Incident,
     IncidentTypeEnum,
@@ -19,7 +19,6 @@ from app.schemas.prediction import ForecastResponse, PredictionRead, RiskAssessm
 
 logger = logging.getLogger(__name__)
 
-PREDICTION_SERVER_URL = os.getenv("PREDICTION_SERVER_URL", "http://localhost:8001")
 METRIC_TYPES = ["cpu", "memory", "disk"]
 
 WARNING_THRESHOLD = 70.0
@@ -27,7 +26,7 @@ CRITICAL_THRESHOLD = 85.0
 
 
 def fetch_forecast(metric_type: str) -> Optional[ForecastResponse]:
-    url = f"{PREDICTION_SERVER_URL}/predict/forecast/{metric_type}"
+    url = f"{settings.PREDICTION_SERVER_URL}/predict/forecast/{metric_type}"
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -118,8 +117,17 @@ def save_proactive_incident(
         "disk": IncidentTypeEnum.DISK_FULL,
     }
 
+    incident_type = incident_type_map.get(assessment.metric_type.lower())
+    if incident_type is None:
+        raise ValueError(f"Unknown metric_type: {assessment.metric_type}")
+
+    try:
+        severity = SeverityEnum[assessment.severity]
+    except KeyError:
+        raise ValueError(f"Unknown severity: {assessment.severity}")
+
     incident = Incident(
-        incident_types=[incident_type_map[assessment.metric_type.lower()]],
+        incident_types=[incident_type],
         trigger_metrics={
             "peak_yhat": assessment.peak_yhat,
             "threshold": WARNING_THRESHOLD,
@@ -127,7 +135,7 @@ def save_proactive_incident(
         },
         target_node="system",
         status=StatusEnum.DETECTED,
-        ai_severity=SeverityEnum[assessment.severity],
+        ai_severity=severity,
         ai_title=f"{assessment.metric_type.upper()} 리소스 임계값 초과 예측",
     )
 

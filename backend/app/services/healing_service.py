@@ -186,12 +186,20 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         if recovery_action.log_snippet
         else new_log
     )
-    if incident is not None:
-        incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
-        if is_successful:
-            incident.resolved_at = datetime.now(timezone.utc)
+    incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
+    if is_successful:
+        incident.resolved_at = datetime.now(timezone.utc)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error(
+            "Failed to commit recovery result for action id=%s",
+            recovery_action_id,
+            exc_info=True,
+        )
+        raise
 
     try:
         broadcaster.broadcast(

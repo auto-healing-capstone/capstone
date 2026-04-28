@@ -6,8 +6,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    Column,
-    Integer,
     String,
     Boolean,
     DateTime,
@@ -132,18 +130,24 @@ class Incident(Base):
 class Prediction(Base):
     __tablename__ = "predictions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, ForeignKey("incidents.id"), index=True, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), index=True, nullable=True
+    )
 
-    target_node = Column(String(100), index=True, nullable=False)
-    metric_type = Column(Enum(MetricTypeEnum), nullable=False)
-    predicted_at = Column(
+    target_node: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    metric_type: Mapped[MetricTypeEnum] = mapped_column(
+        Enum(MetricTypeEnum), nullable=False
+    )
+    predicted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    expected_breach = Column(DateTime(timezone=True), index=True, nullable=True)
+    expected_breach: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True
+    )
 
-    confidence = Column(Float, nullable=True)
-    is_verified = Column(Boolean, default=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # 🤝 Relationships
     incident = relationship("Incident", back_populates="predictions")

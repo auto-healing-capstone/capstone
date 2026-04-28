@@ -21,6 +21,8 @@ from app.schemas.recovery_action import RecoveryActionRead
 
 logger = logging.getLogger(__name__)
 
+_ALERT_STATUS_FIRING = "firing"
+
 
 def _alert_to_orm(alert: SingleAlert) -> AlertEvent:
     return AlertEvent(
@@ -71,7 +73,9 @@ def _find_existing_by_fingerprint(
     stmt = (
         select(AlertEvent)
         .where(AlertEvent.fingerprint == fingerprint)
-        .where(AlertEvent.status == "firing")  # 진행 중인 것만 업데이트 대상
+        .where(
+            AlertEvent.status == _ALERT_STATUS_FIRING
+        )  # 진행 중인 것만 업데이트 대상
         .order_by(AlertEvent.starts_at.desc())
         .limit(1)
     )
@@ -151,20 +155,25 @@ def create_incident_from_llm_result(
         ai_severity=analysis.ai_severity,
         llm_analysis={"analysis": analysis.llm_analysis},
     )
-    db.add(incident)
-    db.flush()
+    try:
+        db.add(incident)
+        db.flush()
 
-    for ae in alert_events:
-        ae.incident_id = incident.id
+        for ae in alert_events:
+            ae.incident_id = incident.id
 
-    recovery_action = RecoveryAction(
-        incident_id=incident.id,
-        action_type=action.action_type,
-        approval_status=ApprovalStatusEnum.PENDING,
-        params=action.params,
-    )
-    db.add(recovery_action)
-    db.commit()
+        recovery_action = RecoveryAction(
+            incident_id=incident.id,
+            action_type=action.action_type,
+            approval_status=ApprovalStatusEnum.PENDING,
+            params=action.params,
+        )
+        db.add(recovery_action)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error("Incident creation transaction failed", exc_info=True)
+        raise
 
     try:
         broadcaster.broadcast(

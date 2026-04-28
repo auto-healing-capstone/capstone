@@ -10,18 +10,21 @@ from docker import DockerClient
 logger = logging.getLogger(__name__)
 
 _client: DockerClient | None = None
-_connect_failed: bool = False
+_connect_failed_at: float | None = None
+_CONNECT_RETRY_INTERVAL = 300  # 5 minutes
 
 
 def get_docker_client() -> DockerClient | None:
-    global _client, _connect_failed
-    if _connect_failed:
-        return None
+    global _client, _connect_failed_at
+    if _connect_failed_at is not None:
+        if time.monotonic() - _connect_failed_at < _CONNECT_RETRY_INTERVAL:
+            return None
+        _connect_failed_at = None
     if _client is None:
         try:
             _client = docker.from_env()
         except Exception:
-            _connect_failed = True
+            _connect_failed_at = time.monotonic()
             logger.error("Failed to connect to Docker daemon", exc_info=True)
     return _client
 
@@ -143,7 +146,7 @@ def restart_process(container_name: str, process: str = "nginx") -> bool:
     try:
         start = time.perf_counter()
         container = client.containers.get(container_name)
-        exit_code, output = container.exec_run(f"sh -c 'kill -HUP $(pidof {process})'")
+        exit_code, output = container.exec_run(["pkill", "-HUP", process])
         if exit_code != 0:
             logger.error(
                 "restart_process failed for '%s' in container %s (exit %d): %s",
