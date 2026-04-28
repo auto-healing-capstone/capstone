@@ -42,12 +42,12 @@ class IncidentTypeEnum(str, enum.Enum):
 
 
 class StatusEnum(str, enum.Enum):
-    DETECTED = "DETECTED"    # proactive: 예측 기반 장애 감지 시 초기 상태
+    DETECTED = "DETECTED"  # proactive: 예측 기반 장애 감지 시 초기 상태
     ANALYZING = "ANALYZING"  # 현재 미사용 (향후 실시간 분석 상태 표시용으로 예약)
-    PENDING = "PENDING"      # LLM 분석 완료, Slack 승인 대기 중
+    PENDING = "PENDING"  # LLM 분석 완료, Slack 승인 대기 중
     RECOVERING = "RECOVERING"  # 관리자 승인 완료, 복구 실행 중
-    RESOLVED = "RESOLVED"    # 복구 성공
-    FAILED = "FAILED"        # 복구 실패
+    RESOLVED = "RESOLVED"  # 복구 성공
+    FAILED = "FAILED"  # 복구 실패
 
 
 class SeverityEnum(str, enum.Enum):
@@ -92,7 +92,9 @@ class Incident(Base):
     )
 
     # 복합 장애를 담는 ARRAY(ENUM)
-    incident_types: Mapped[list] = mapped_column(ARRAY(Enum(IncidentTypeEnum)), nullable=False)
+    incident_types: Mapped[list] = mapped_column(
+        ARRAY(Enum(IncidentTypeEnum)), nullable=False
+    )
     trigger_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     target_node: Mapped[str] = mapped_column(String(100), index=True)

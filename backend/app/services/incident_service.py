@@ -5,6 +5,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.events import broadcaster
 from app.integrations.slack_client import send_approval_request
 from app.models.alert_event import AlertEvent
 from app.models.schema import (
@@ -164,6 +165,21 @@ def create_incident_from_llm_result(
     )
     db.add(recovery_action)
     db.commit()
+
+    try:
+        broadcaster.broadcast(
+            "new_incident",
+            {
+                "incident_id": incident.id,
+                "ai_title": incident.ai_title,
+                "ai_severity": (
+                    incident.ai_severity.value if incident.ai_severity else None
+                ),
+                "status": incident.status.value,
+            },
+        )
+    except Exception:
+        logger.warning("SSE broadcast new_incident failed", exc_info=True)
 
     try:
         send_approval_request(action.slack_summary)

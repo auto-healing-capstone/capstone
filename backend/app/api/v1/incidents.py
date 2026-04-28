@@ -77,7 +77,7 @@ def get_incident(
     response_model=list[RecoveryActionRead],
     status_code=http_status.HTTP_200_OK,
     summary="List recovery actions for an incident",
-    description="Return all recovery actions linked to the given incident, newest first.",
+    description="Return recovery actions for the given incident.",
 )
 def list_incident_recovery_actions(
     incident_id: int,

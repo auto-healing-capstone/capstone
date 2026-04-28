@@ -15,8 +15,15 @@ from app.integrations.docker_client import (
     update_container,
 )
 from app.core.config import TARGET_NODE_MAP
+from app.core.events import broadcaster
 from app.integrations.slack_client import send_recovery_result
-from app.models.schema import ActionTypeEnum, ApprovalStatusEnum, Incident, RecoveryAction, StatusEnum
+from app.models.schema import (
+    ActionTypeEnum,
+    ApprovalStatusEnum,
+    Incident,
+    RecoveryAction,
+    StatusEnum,
+)
 from app.schemas.recovery_action import RecoveryActionListResponse, RecoveryActionRead
 
 logger = logging.getLogger(__name__)
@@ -77,6 +84,15 @@ def approve_recovery_action(
         if incident:
             incident.status = StatusEnum.RECOVERING
     db.commit()
+
+    try:
+        broadcaster.broadcast(
+            "status_changed",
+            {"incident_id": action.incident_id, "status": "RECOVERING"},
+        )
+    except Exception:
+        logger.warning("SSE broadcast status_changed failed", exc_info=True)
+
     db.refresh(action)
     return RecoveryActionRead.model_validate(action)
 
@@ -174,6 +190,18 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
 
     db.commit()
+
+    try:
+        broadcaster.broadcast(
+            "recovery_completed",
+            {
+                "incident_id": incident.id,
+                "is_successful": is_successful,
+                "action_type": action_type.value,
+            },
+        )
+    except Exception:
+        logger.warning("SSE broadcast recovery_completed failed", exc_info=True)
 
     try:
         send_recovery_result(container_name, action_type, is_successful)
