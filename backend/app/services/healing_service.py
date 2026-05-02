@@ -62,7 +62,7 @@ def get_recovery_actions(
 
 def approve_recovery_action(
     recovery_action_id: int,
-    approved_by: str,
+    reviewed_by: str,
     reason: Optional[str],
     db: Session,
 ) -> RecoveryActionRead:
@@ -72,11 +72,9 @@ def approve_recovery_action(
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
 
-    # TODO: approved_at/approved_by를 reject에도 재사용 중
-    # 추후 reviewed_at/reviewed_by로 중립적 필드명으로 개선 필요
     action.approval_status = ApprovalStatusEnum.APPROVED
-    action.approved_at = datetime.now(timezone.utc)
-    action.approved_by = approved_by
+    action.reviewed_at = datetime.now(timezone.utc)
+    action.reviewed_by = reviewed_by
     if reason:
         action.log_snippet = reason
     if action.incident_id:
@@ -109,11 +107,9 @@ def reject_recovery_action(
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
 
-    # TODO: approved_at/approved_by를 reject에도 재사용 중
-    # 추후 reviewed_at/reviewed_by로 중립적 필드명으로 개선 필요
     action.approval_status = ApprovalStatusEnum.REJECTED
-    action.approved_at = datetime.now(timezone.utc)
-    action.approved_by = rejected_by
+    action.reviewed_at = datetime.now(timezone.utc)
+    action.reviewed_by = rejected_by
     if reason:
         action.log_snippet = reason
     db.commit()
