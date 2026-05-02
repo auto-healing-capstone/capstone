@@ -1,4 +1,4 @@
-"""rename approved_at_by to reviewed_at_by
+"""rename approved_at and approved_by columns to reviewed_at and reviewed_by
 
 Revision ID: 6aa45ceda9ec
 Revises: b093a147e92c
