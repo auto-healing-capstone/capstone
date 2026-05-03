@@ -23,7 +23,7 @@ def _query_metric(client: httpx.Client, metric_name: str) -> float | None:
         )
         response.raise_for_status()
         result = response.json()["data"]["result"]
-        if result:
+        if result and len(result[0].get("value", [])) >= 2:
             return float(result[0]["value"][1])
         return None
     except Exception:

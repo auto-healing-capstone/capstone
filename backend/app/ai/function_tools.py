@@ -80,8 +80,37 @@ RECOMMEND_TOOL: ChatCompletionToolParam = {
                         "States what happened and what action is proposed."
                     ),
                 },
+                "params": {
+                    "type": "object",
+                    "description": (
+                        "Action execution parameters. "
+                        "Empty object for RESTART_CONTAINER, CLEAR_LOGS, DOCKER_PRUNE. "
+                        "For RESTART_PROCESS: optionally include process (string); "
+                        "defaults to 'nginx' if omitted. "
+                        "For SCALE_OUT: include mem_limit (string, e.g. '512m') "
+                        "and/or cpu_quota (integer, e.g. 50000)."
+                    ),
+                    "properties": {
+                        "mem_limit": {
+                            "type": "string",
+                            "description": (
+                                "Memory limit for SCALE_OUT (e.g. '512m', '1g')."
+                            ),
+                        },
+                        "cpu_quota": {
+                            "type": "integer",
+                            "description": "CPU quota in microseconds for SCALE_OUT.",
+                        },
+                        "process": {
+                            "type": "string",
+                            "description": (
+                                "Process name for RESTART_PROCESS (e.g. 'nginx')."
+                            ),
+                        },
+                    },
+                },
             },
-            "required": ["action_type", "reason", "slack_summary"],
+            "required": ["action_type", "reason", "slack_summary", "params"],
         },
     },
 }

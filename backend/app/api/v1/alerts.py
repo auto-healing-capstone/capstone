@@ -1,6 +1,7 @@
 # backend/app/api/v1/alerts.py
 import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -31,8 +32,13 @@ def _run_llm_background(alert_event_ids: list[int]) -> None:
         if not alert_events:
             logger.warning("No alert events found for ids: %s", alert_event_ids)
             return
+        start = time.perf_counter()
         analysis, action = asyncio.run(run_llm_pipeline(alert_events))
         create_incident_from_llm_result(alert_events, analysis, action, db)
+        logger.info(
+            "[TIMING] LLM background pipeline total completed in %.2fs",
+            time.perf_counter() - start,
+        )
     except Exception:
         logger.error("LLM background pipeline failed", exc_info=True)
     finally:
@@ -55,8 +61,9 @@ def receive_alert(
         alert_events = incident_service.create_alert_events_from_payload(payload, db)
         background_tasks.add_task(_run_llm_background, [r.id for r in alert_events])
         return alert_events
-    except Exception as exc:
+    except Exception:
+        logger.error("Failed to save alerts", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save alerts: {exc}",
+            detail="Internal server error",
         )
