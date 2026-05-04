@@ -4,6 +4,8 @@ import math
 from datetime import datetime, timezone
 from typing import Optional
 
+from datetime import timedelta
+
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -241,3 +243,51 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 
     return is_successful
+
+
+def expire_pending_actions(db: Session) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    actions = (
+        db.execute(
+            select(RecoveryAction)
+            .join(Incident, RecoveryAction.incident_id == Incident.id)
+            .where(RecoveryAction.approval_status == ApprovalStatusEnum.PENDING)
+            .where(Incident.detected_at <= cutoff)
+        )
+        .scalars()
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    timeout_msg = "Auto-rejected: approval timeout"
+    for action in actions:
+        action.approval_status = ApprovalStatusEnum.REJECTED
+        action.reviewed_at = now
+        action.reviewed_by = "system"
+        action.log_snippet = (
+            f"{action.log_snippet}\n{timeout_msg}"
+            if action.log_snippet
+            else timeout_msg
+        )
+
+    logger.info("Auto-rejected %d pending actions due to timeout", len(actions))
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to commit auto-reject of pending actions")
+        return
+
+    for action in actions:
+        try:
+            incident = db.get(Incident, action.incident_id)
+            if incident is None:
+                continue
+            send_recovery_result(incident.target_node, action.action_type, False)
+        except Exception:
+            logger.warning(
+                "Slack notification failed for expired action id=%s",
+                action.id,
+                exc_info=True,
+            )
