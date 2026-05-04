@@ -254,9 +254,7 @@ async def run_llm_pipeline(
         analysis = await _call_analyze(user_message)
         action = await _call_recommend(analysis)
     except (RetryError, Exception) as exc:
-        logger.error(
-            "LLM pipeline failed, applying rule-based fallback: %s", exc
-        )
+        logger.error("LLM pipeline failed, applying rule-based fallback: %s", exc)
         return _fallback_pipeline(alert_events)
     logger.info(
         "[TIMING] LLM pipeline total completed in %.2fs", time.perf_counter() - start

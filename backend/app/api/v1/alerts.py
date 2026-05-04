@@ -33,14 +33,22 @@ def _run_llm_background(alert_event_ids: list[int]) -> None:
             logger.warning("No alert events found for ids: %s", alert_event_ids)
             return
         start = time.perf_counter()
-        analysis, action = asyncio.run(run_llm_pipeline(alert_events))
-        create_incident_from_llm_result(alert_events, analysis, action, db)
+        try:
+            analysis, action = asyncio.run(run_llm_pipeline(alert_events))
+            create_incident_from_llm_result(alert_events, analysis, action, db)
+        except Exception:
+            logger.error(
+                "LLM pipeline failed for alert_event_ids=%s",
+                alert_event_ids,
+                exc_info=True,
+            )
+            return
         logger.info(
             "[TIMING] LLM background pipeline total completed in %.2fs",
             time.perf_counter() - start,
         )
     except Exception:
-        logger.error("LLM background pipeline failed", exc_info=True)
+        logger.error("Failed to fetch alert events from DB", exc_info=True)
     finally:
         db.close()
 
@@ -57,12 +65,17 @@ def receive_alert(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> list[AlertEventRead]:
+    if not payload.alerts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No alerts in payload",
+        )
     try:
         alert_events = incident_service.create_alert_events_from_payload(payload, db)
         background_tasks.add_task(_run_llm_background, [r.id for r in alert_events])
         return alert_events
     except Exception:
-        logger.error("Failed to save alerts", exc_info=True)
+        logger.error("Failed to persist alert events from payload", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",

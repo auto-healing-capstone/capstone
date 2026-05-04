@@ -85,7 +85,9 @@ def approve_recovery_action(
         db.commit()
     except Exception:
         db.rollback()
-        logger.exception("Failed to commit approve for action id=%s", recovery_action_id)
+        logger.exception(
+            "Failed to commit approve for action id=%s", recovery_action_id
+        )
         raise
 
     try:
@@ -165,7 +167,9 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         elif action_type == ActionTypeEnum.SCALE_OUT:
             allowed_keys = {"mem_limit", "cpu_quota"}
             safe_params = {
-                k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+                k: v
+                for k, v in (recovery_action.params or {}).items()
+                if k in allowed_keys
             }
             is_successful = update_container(container_name, **safe_params)
         elif action_type == ActionTypeEnum.CLEAR_LOGS:
@@ -175,7 +179,9 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         elif action_type == ActionTypeEnum.RESTART_PROCESS:
             allowed_keys = {"process"}
             safe_params = {
-                k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+                k: v
+                for k, v in (recovery_action.params or {}).items()
+                if k in allowed_keys
             }
             is_successful = restart_process(container_name, **safe_params)
         else:
