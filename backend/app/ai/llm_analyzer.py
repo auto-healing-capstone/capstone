@@ -4,9 +4,17 @@ import logging
 import time
 from typing import Any
 
+import openai
 from openai import AsyncOpenAI
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
+)
+from tenacity import (
+    RetryError,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
 
 from app.ai.function_tools import ANALYZE_TOOL, RECOMMEND_TOOL
@@ -14,6 +22,7 @@ from app.ai.prompts.analyze import ANALYZE_SYSTEM_PROMPT
 from app.ai.prompts.recommend import RECOMMEND_SYSTEM_PROMPT
 from app.core.config import settings
 from app.models.alert_event import AlertEvent
+from app.models.schema import ActionTypeEnum, IncidentTypeEnum, SeverityEnum
 from app.schemas.llm_action import ActionResult, AnalysisResult
 
 _MODEL = "gpt-4o-mini"
@@ -84,18 +93,38 @@ def format_alert_events_for_llm(alerts: list[AlertEvent]) -> str:
     return "\n\n".join(sections)
 
 
+def _log_retry(retry_state) -> None:
+    logger.warning(
+        "LLM API retrying (attempt %d): %s",
+        retry_state.attempt_number,
+        retry_state.outcome.exception(),
+    )
+
+
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=1, max=16),
+    stop=stop_after_attempt(3),
+    before_sleep=_log_retry,
+)
 async def _call_analyze(user_message: str) -> AnalysisResult:
     start = time.perf_counter()
     client = get_openai_client()
-    response = await client.chat.completions.create(
-        model=_MODEL,
-        messages=[
-            {"role": "system", "content": ANALYZE_SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        tools=[ANALYZE_TOOL],
-        tool_choice={"type": "function", "function": {"name": "analyze_incident"}},
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=_MODEL,
+            messages=[
+                {"role": "system", "content": ANALYZE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            tools=[ANALYZE_TOOL],
+            tool_choice={"type": "function", "function": {"name": "analyze_incident"}},
+            timeout=30.0,
+        )
+    except (openai.AuthenticationError, openai.BadRequestError):
+        raise
     tool_calls = response.choices[0].message.tool_calls
     if not tool_calls:
         raise RuntimeError("LLM returned no tool calls")
@@ -108,6 +137,14 @@ async def _call_analyze(user_message: str) -> AnalysisResult:
     return AnalysisResult(**args)
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=1, max=16),
+    stop=stop_after_attempt(3),
+    before_sleep=_log_retry,
+)
 async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
     start = time.perf_counter()
     client = get_openai_client()
@@ -119,37 +156,41 @@ async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
             "llm_analysis": analysis.llm_analysis,
         }
     )
-    response = await client.chat.completions.create(
-        model=_MODEL,
-        messages=[
-            {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": "Analyze this incident and recommend a recovery action.",
-            },
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_analyze_0",
-                        "type": "function",
-                        "function": {
-                            "name": "analyze_incident",
-                            "arguments": analysis_args,
-                        },
-                    }
-                ],
-            },
-            {
-                "role": "tool",
-                "content": analysis_args,
-                "tool_call_id": "call_analyze_0",
-            },
-        ],
-        tools=[RECOMMEND_TOOL],
-        tool_choice={"type": "function", "function": {"name": "recommend_action"}},
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=_MODEL,
+            messages=[
+                {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": "Analyze this incident and recommend a recovery action.",
+                },
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_analyze_0",
+                            "type": "function",
+                            "function": {
+                                "name": "analyze_incident",
+                                "arguments": analysis_args,
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": analysis_args,
+                    "tool_call_id": "call_analyze_0",
+                },
+            ],
+            tools=[RECOMMEND_TOOL],
+            tool_choice={"type": "function", "function": {"name": "recommend_action"}},
+            timeout=30.0,
+        )
+    except (openai.AuthenticationError, openai.BadRequestError):
+        raise
     tool_calls = response.choices[0].message.tool_calls
     if not tool_calls:
         raise RuntimeError("LLM returned no tool calls")
@@ -162,13 +203,61 @@ async def _call_recommend(analysis: AnalysisResult) -> ActionResult:
     return ActionResult(**args)
 
 
+def _fallback_pipeline(
+    alert_events: list[AlertEvent],
+) -> tuple[AnalysisResult, ActionResult]:
+    alert_name = alert_events[0].alert_name if alert_events else "unknown"
+    name_lower = alert_name.lower()
+
+    if "cpu" in name_lower:
+        incident_type = IncidentTypeEnum.HIGH_CPU
+        action_type = ActionTypeEnum.SCALE_OUT
+        params: dict[str, Any] = {"cpu_quota": 50000}
+    elif "mem" in name_lower or "oom" in name_lower:
+        incident_type = IncidentTypeEnum.OOM
+        action_type = ActionTypeEnum.RESTART_CONTAINER
+        params = {}
+    elif "disk" in name_lower:
+        incident_type = IncidentTypeEnum.DISK_FULL
+        action_type = ActionTypeEnum.CLEAR_LOGS
+        params = {}
+    elif "nginx" in name_lower:
+        incident_type = IncidentTypeEnum.NGINX_5XX
+        action_type = ActionTypeEnum.RESTART_PROCESS
+        params = {"process": "nginx"}
+    else:
+        incident_type = IncidentTypeEnum.HIGH_CPU
+        action_type = ActionTypeEnum.RESTART_CONTAINER
+        params = {}
+
+    analysis = AnalysisResult(
+        ai_title=f"[Fallback] {alert_name}",
+        ai_severity=SeverityEnum.HIGH,
+        llm_analysis="LLM unavailable. Rule-based fallback applied.",
+        incident_types=[incident_type],
+    )
+    action = ActionResult(
+        action_type=action_type,
+        reason="LLM fallback: rule-based selection",
+        slack_summary=f"[Fallback] {incident_type} detected. Applying {action_type}.",
+        params=params,
+    )
+    return analysis, action
+
+
 async def run_llm_pipeline(
     alert_events: list[AlertEvent],
 ) -> tuple[AnalysisResult, ActionResult]:
     start = time.perf_counter()
     user_message = format_alert_events_for_llm(alert_events)
-    analysis = await _call_analyze(user_message)
-    action = await _call_recommend(analysis)
+    try:
+        analysis = await _call_analyze(user_message)
+        action = await _call_recommend(analysis)
+    except (RetryError, Exception) as exc:
+        logger.error(
+            "LLM pipeline failed, applying rule-based fallback: %s", exc
+        )
+        return _fallback_pipeline(alert_events)
     logger.info(
         "[TIMING] LLM pipeline total completed in %.2fs", time.perf_counter() - start
     )
