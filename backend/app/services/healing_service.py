@@ -148,27 +148,40 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     container_name = TARGET_NODE_MAP.get(target_node, target_node) or target_node
     action_type = recovery_action.action_type
 
-    if action_type == ActionTypeEnum.RESTART_CONTAINER:
-        is_successful = restart_container(container_name)
-    elif action_type == ActionTypeEnum.SCALE_OUT:
-        allowed_keys = {"mem_limit", "cpu_quota"}
-        safe_params = {
-            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
-        }
-        is_successful = update_container(container_name, **safe_params)
-    elif action_type == ActionTypeEnum.CLEAR_LOGS:
-        is_successful = clear_logs(container_name)
-    elif action_type == ActionTypeEnum.DOCKER_PRUNE:
-        is_successful = docker_prune()
-    elif action_type == ActionTypeEnum.RESTART_PROCESS:
-        allowed_keys = {"process"}
-        safe_params = {
-            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
-        }
-        is_successful = restart_process(container_name, **safe_params)
-    else:
-        logger.error("Unknown action type: %s", action_type)
+    log_snippet: Optional[str] = None
+    try:
+        if action_type == ActionTypeEnum.RESTART_CONTAINER:
+            is_successful = restart_container(container_name)
+        elif action_type == ActionTypeEnum.SCALE_OUT:
+            allowed_keys = {"mem_limit", "cpu_quota"}
+            safe_params = {
+                k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+            }
+            is_successful = update_container(container_name, **safe_params)
+        elif action_type == ActionTypeEnum.CLEAR_LOGS:
+            is_successful = clear_logs(container_name)
+        elif action_type == ActionTypeEnum.DOCKER_PRUNE:
+            is_successful = docker_prune()
+        elif action_type == ActionTypeEnum.RESTART_PROCESS:
+            allowed_keys = {"process"}
+            safe_params = {
+                k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
+            }
+            is_successful = restart_process(container_name, **safe_params)
+        else:
+            logger.error("Unknown action type: %s", action_type)
+            is_successful = False
+    except Exception as exc:
+        logger.exception(
+            "Docker recovery failed for action id=%s: %s", recovery_action_id, exc
+        )
         is_successful = False
+        error_msg = f"Docker error: {exc}"
+        log_snippet = (
+            f"{recovery_action.log_snippet}\n{error_msg}"
+            if recovery_action.log_snippet
+            else error_msg
+        )
 
     recovery_action.executed_at = datetime.now(timezone.utc)
     recovery_action.is_successful = is_successful
@@ -177,11 +190,8 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         if is_successful
         else "Recovery execution failed"
     )
-    recovery_action.log_snippet = (
-        f"{recovery_action.log_snippet}\n{new_log}"
-        if recovery_action.log_snippet
-        else new_log
-    )
+    base = log_snippet if log_snippet is not None else recovery_action.log_snippet
+    recovery_action.log_snippet = f"{base}\n{new_log}" if base else new_log
     incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
     if is_successful:
         incident.resolved_at = datetime.now(timezone.utc)
