@@ -239,7 +239,10 @@ def _fallback_pipeline(
     action = ActionResult(
         action_type=action_type,
         reason="LLM fallback: rule-based selection",
-        slack_summary=f"[Fallback] {incident_type} detected. Applying {action_type}.",
+        slack_summary=(
+            f"[Fallback] {incident_type.value} detected."
+            f" Applying {action_type.value}."
+        ),
         params=params,
     )
     return analysis, action
@@ -253,6 +256,8 @@ async def run_llm_pipeline(
     try:
         analysis = await _call_analyze(user_message)
         action = await _call_recommend(analysis)
+    except (openai.AuthenticationError, openai.BadRequestError):
+        raise
     except (RetryError, Exception) as exc:
         logger.error("LLM pipeline failed, applying rule-based fallback: %s", exc)
         return _fallback_pipeline(alert_events)

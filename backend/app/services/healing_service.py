@@ -269,6 +269,9 @@ def expire_pending_actions(db: Session) -> None:
             if action.log_snippet
             else timeout_msg
         )
+        incident = db.get(Incident, action.incident_id)
+        if incident is not None:
+            incident.status = StatusEnum.FAILED
 
     logger.info("Auto-rejected %d pending actions due to timeout", len(actions))
 
@@ -281,10 +284,28 @@ def expire_pending_actions(db: Session) -> None:
 
     for action in actions:
         try:
+            broadcaster.broadcast(
+                "status_changed",
+                {
+                    "incident_id": action.incident_id,
+                    "status": StatusEnum.FAILED.value,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "SSE broadcast failed for expired action id=%s",
+                action.id,
+                exc_info=True,
+            )
+
+        try:
             incident = db.get(Incident, action.incident_id)
             if incident is None:
                 continue
-            send_recovery_result(incident.target_node, action.action_type, False)
+            container_name = TARGET_NODE_MAP.get(
+                incident.target_node, incident.target_node
+            )
+            send_recovery_result(container_name, action.action_type, False)
         except Exception:
             logger.warning(
                 "Slack notification failed for expired action id=%s",
