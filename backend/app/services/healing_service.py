@@ -81,7 +81,12 @@ def approve_recovery_action(
         incident = db.get(Incident, action.incident_id)
         if incident:
             incident.status = StatusEnum.RECOVERING
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to commit approve for action id=%s", recovery_action_id)
+        raise
 
     try:
         broadcaster.broadcast(
@@ -112,7 +117,12 @@ def reject_recovery_action(
     action.reviewed_by = rejected_by
     if reason:
         action.log_snippet = reason
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to commit reject for action id=%s", recovery_action_id)
+        raise
     db.refresh(action)
     return RecoveryActionRead.model_validate(action)
 
