@@ -213,18 +213,33 @@ def _fallback_pipeline(
         incident_type = IncidentTypeEnum.HIGH_CPU
         action_type = ActionTypeEnum.SCALE_OUT
         params: dict[str, Any] = {"cpu_quota": 50000}
-    elif "mem" in name_lower or "oom" in name_lower:
+    elif "mem" in name_lower or "oom" in name_lower or "memory" in name_lower:
         incident_type = IncidentTypeEnum.OOM
         action_type = ActionTypeEnum.RESTART_CONTAINER
         params = {}
-    elif "disk" in name_lower:
+    elif "disk" in name_lower or "volume" in name_lower or "storage" in name_lower:
         incident_type = IncidentTypeEnum.DISK_FULL
         action_type = ActionTypeEnum.CLEAR_LOGS
         params = {}
-    elif "nginx" in name_lower:
+    elif (
+        "nginx" in name_lower
+        or "5xx" in name_lower
+        or "502" in name_lower
+        or "503" in name_lower
+    ):
         incident_type = IncidentTypeEnum.NGINX_5XX
         action_type = ActionTypeEnum.RESTART_PROCESS
         params = {"process": "nginx"}
+    elif (
+        "db" in name_lower
+        or "database" in name_lower
+        or "connection" in name_lower
+        or "deadlock" in name_lower
+        or "pool" in name_lower
+    ):
+        incident_type = IncidentTypeEnum.DB_CONNECTION
+        action_type = ActionTypeEnum.RESTART_CONTAINER
+        params = {}
     else:
         incident_type = IncidentTypeEnum.HIGH_CPU
         action_type = ActionTypeEnum.RESTART_CONTAINER
@@ -256,10 +271,12 @@ async def run_llm_pipeline(
     try:
         analysis = await _call_analyze(user_message)
         action = await _call_recommend(analysis)
-    except (openai.AuthenticationError, openai.BadRequestError):
-        raise
     except (RetryError, Exception) as exc:
-        logger.error("LLM pipeline failed, applying rule-based fallback: %s", exc)
+        logger.error(
+            "LLM unavailable due to %s, applying fallback: %s",
+            exc.__class__.__name__,
+            exc,
+        )
         return _fallback_pipeline(alert_events)
     logger.info(
         "[TIMING] LLM pipeline total completed in %.2fs", time.perf_counter() - start
