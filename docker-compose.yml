@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+    command: postgres -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
     ports:
       - "5432:5432" # PostgreSQL 기본포트, 내 컴퓨터의 5432 포트와 컨테이너의 5432 포트를 연결
     volumes:
@@ -19,7 +21,17 @@ services:
     container_name: target_nginx
     ports:
       - "8080:80" # localhost:8080으로 접속하면 Nginx 화면이 나옴
+    volumes:
+      - ./infra/nginx:/etc/nginx/conf.d  # nginx 설정 핫 리로드용 볼륨 마운트
     # 나중에 FastAPI의 Docker SDK로 이 컨테이너를 죽이고 살릴 예정
+
+  # 2-1. Upstream App (Nginx 5xx 시나리오 실험용 업스트림 서버)
+  upstream_app:
+    image: python:3.11-slim
+    container_name: upstream_app
+    command: python -m http.server 80
+    ports:
+      - "8081:80"
 
   # 3. 메트릭 에이전트 (Prometheus가 scrape할 프로미터 메트릭 노출)
   agent:
@@ -33,6 +45,8 @@ services:
     volumes:
       - ./agent:/app
       - ./infra:/infra
+      - /var/run/docker.sock:/var/run/docker.sock  # 컨테이너 메트릭 수집용 Docker socket
+      - /tmp/auto-healing-scenarios:/tmp/auto-healing-scenarios
     working_dir: /app
     command: python agent.py
     ports:
