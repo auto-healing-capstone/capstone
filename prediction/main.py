@@ -1,11 +1,14 @@
 from fastapi import FastAPI, HTTPException
 import uvicorn
+import httpx
+import pandas as pd
 from collector import get_prometheus_data
 from preprocess import transform_to_prophet_df
-from model import forecast_resource_usage
-from model import generate_llm_report
+from model import forecast_resource_usage, generate_llm_report, calculate_recovery_impact
 
 app = FastAPI()
+
+BACKEND_URL = "http://localhost:8000"
 
 METRIC_LIST = {
     "cpu": "dummy_cpu_usage",
@@ -26,11 +29,33 @@ THRESHOLD_MAP = {
     "fd_ratio": 0.8
 }
 
+async def get_recovery_events():
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{BACKEND_URL}/api/v1/recovery-actions", timeout=2.0)
+            if response.status_code == 200:
+                actions = response.json()
+                if not actions:
+                    return None
+
+                events = pd.DataFrame([
+                    {
+                        'holiday': f"heal_{a['action_type']}",
+                        'ds': pd.to_datetime(a['executed_at']),
+                        'lower_window': 0,
+                        'upper_window': 0.01
+                    } for a in actions if a['status'] == 'success'
+                ])
+                if events.empty:
+                    return None
+                return events
+    except Exception as e:
+        print(f"[Warning] 복구 이력 로드 실패: {e}")
+    return None
 
 @app.get("/")
 def read_root():
-    return {"message": "AIOps 예측 서버가 살아있습니다!"}
-
+    return {"message": "AIOps 예측 서버가 실행 중입니다."}
 
 @app.get("/predict/forecast/{type}")
 async def get_forecast(type: str):
@@ -45,25 +70,29 @@ async def get_forecast(type: str):
         if not raw:
             return {"message": "데이터가 부족합니다.", "llm_context": "데이터 부족으로 예측 불가"}
 
+        heal_events = await get_recovery_events()
         clean_df = transform_to_prophet_df(raw)
-        forecast_df = forecast_resource_usage(clean_df, periods=60)
+        forecast_df = forecast_resource_usage(clean_df, periods=60, events=heal_events)
 
         peak_yhat = forecast_df['yhat'].max()
-        
-        # 임계치 초과 시점 계산
         breach_data = forecast_df[forecast_df['yhat'] >= threshold]
         expected_time = breach_data['ds'].iloc[0].strftime('%H:%M') if not breach_data.empty else None
 
-        # 신뢰도 계산 (예측폭 기준)
         avg_spread = (forecast_df['yhat_upper'] - forecast_df['yhat_lower']).mean()
         confidence_score = max(0, 1 - (avg_spread / (peak_yhat if peak_yhat > 0 else 100)))
+
+        impact_result = None
+        if heal_events is not None:
+            impact_result = calculate_recovery_impact(clean_df, heal_events)
 
         llm_message = generate_llm_report(
             metric_type=type,
             peak_value=peak_yhat,
             expected_time=expected_time,
             confidence=confidence_score,
-            threshold=threshold
+            threshold=threshold,
+            is_recovered=heal_events is not None,
+            impact=impact_result
         )
 
         return {
@@ -73,12 +102,13 @@ async def get_forecast(type: str):
             "peak_predicted": round(peak_yhat, 2),
             "expected_breach_time": expected_time,
             "llm_context": llm_message,
-            "forecast_data": forecast_df.tail(10).to_dict(orient="records")
+            "recovery_applied": heal_events is not None,
+            "forecast_data": forecast_df.tail(10).to_dict(orient="records"),
+            "recovery_impact": impact_result,
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
