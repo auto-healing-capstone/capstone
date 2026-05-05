@@ -27,6 +27,15 @@ Populate params based on the chosen action_type:
     - cpu_quota (integer): CPU quota in microseconds.
     e.g. 50000 (= 50 percent of one core, assuming default cpu_period=100000)
 
+## Compound failure priority rules
+When multiple incident_types are present, apply these priorities:
+- CONTAINER_CRASH present → prefer RESTART_CONTAINER above all others
+- OOM + HIGH_CPU together → prefer SCALE_OUT
+- DISK_FULL + NGINX_5XX together → prefer CLEAR_LOGS or DOCKER_PRUNE first
+- DB_CONNECTION present → prefer RESTART_CONTAINER or RESTART_PROCESS
+- If no clear priority applies, choose the action that resolves
+  the most critical symptom first and explain trade-offs in reason field
+
 ## Rules
 - You MUST respond by calling the recommend_action function only
 - Choose the action that most directly resolves the diagnosed root cause
