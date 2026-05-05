@@ -58,7 +58,7 @@ def approve_recovery_action(
     try:
         return healing_service.approve_recovery_action(
             recovery_action_id=id,
-            approved_by=body.approved_by,
+            reviewed_by=body.reviewed_by,
             reason=body.reason,
             db=db,
         )

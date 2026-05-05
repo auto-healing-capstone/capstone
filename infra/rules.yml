@@ -29,6 +29,7 @@ groups:
       labels:
         severity: warning
         source: infra-load-test
+        action: update_resources
       annotations:
         summary: "Load test memory usage detected"
         description: "Infra load test memory usage is {{ $value }} MB"
@@ -39,6 +40,94 @@ groups:
       labels:
         severity: warning
         source: infra-load-test
+        action: cleanup_disk
       annotations:
         summary: "Load test disk usage detected"
         description: "Infra load test disk usage is {{ $value }} MB"
+
+  # ── 장애 시나리오 알림 규칙 ───────────────────────────────────────────────
+
+  - name: nginx-scenario-alerts
+    rules:
+    - alert: NginxHighErrorRate
+      expr: infra_nginx_5xx_total > 0
+      for: 15s
+      labels:
+        severity: critical
+        source: nginx
+        action: reload_nginx
+      annotations:
+        summary: "Nginx 5xx 에러 감지"
+        description: "Nginx 5xx 에러 누적: {{ $value }}건 (upstream 장애 가능성)"
+
+  - name: db-scenario-alerts
+    rules:
+    - alert: DBConnectionPoolExhausted
+      expr: infra_db_active_connections > 0 and infra_db_max_connections > 0 and (infra_db_active_connections / infra_db_max_connections) >= 0.9
+      for: 15s
+      labels:
+        severity: critical
+        source: postgres
+        action: update_db_config
+      annotations:
+        summary: "DB 커넥션 풀 고갈 임박"
+        description: "활성 연결 {{ $value }}개 — max_connections 90% 초과"
+
+  - name: oom-scenario-alerts
+    rules:
+    - alert: ContainerOOMKilled
+      expr: infra_container_oom_killed > 0
+      for: 5s
+      labels:
+        severity: critical
+        source: docker
+        action: update_resources
+      annotations:
+        summary: "컨테이너 OOM Kill 감지"
+        description: "OOM Kill 발생 컨테이너 수: {{ $value }}"
+
+  - name: advanced-scenario-alerts
+    rules:
+    - alert: DBDeadlockDetected
+      expr: infra_db_deadlock_count > 0
+      for: 5s
+      labels:
+        severity: critical
+        source: postgres
+        action: restart_container
+      annotations:
+        summary: "DB 데드락 감지"
+        description: "데드락 발생 횟수: {{ $value }}"
+
+    - alert: ZombieProcessAccumulation
+      expr: infra_zombie_process_count >= 3
+      for: 10s
+      labels:
+        severity: warning
+        source: docker
+        action: restart_container
+      annotations:
+        summary: "좀비 프로세스 누적"
+        description: "좀비 프로세스 수: {{ $value }}"
+
+    - alert: FDExhaustionRisk
+      expr: infra_fd_usage_ratio >= 0.8
+      for: 10s
+      labels:
+        severity: critical
+        source: docker
+        action: restart_container
+      annotations:
+        summary: "파일 디스크립터 고갈 위험"
+        description: "FD 사용률: {{ $value | humanizePercentage }}"
+
+    - alert: MemoryLeakDetected
+      expr: infra_memory_leak_mb > 100
+      for: 15s
+      labels:
+        severity: warning
+        source: docker
+        action: update_resources
+      annotations:
+        summary: "메모리 누수 감지"
+        description: "누수 추정량: {{ $value }}MB"

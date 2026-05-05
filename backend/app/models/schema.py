@@ -174,10 +174,10 @@ class RecoveryAction(Base):
     approval_status: Mapped[ApprovalStatusEnum] = mapped_column(
         Enum(ApprovalStatusEnum), default=ApprovalStatusEnum.PENDING, nullable=False
     )
-    approved_at: Mapped[Optional[datetime]] = mapped_column(
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    approved_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     executed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

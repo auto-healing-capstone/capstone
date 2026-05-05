@@ -14,8 +14,8 @@ class RecoveryActionRead(BaseModel):
     action_type: ActionTypeEnum
     params: Optional[dict] = None
     approval_status: ApprovalStatusEnum
-    approved_at: Optional[datetime] = None
-    approved_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    reviewed_by: Optional[str] = None
     executed_at: Optional[datetime] = None
     is_successful: Optional[bool] = None
     log_snippet: Optional[str] = None
@@ -32,7 +32,7 @@ class RecoveryActionListResponse(BaseModel):
 
 
 class ApproveRequest(BaseModel):
-    approved_by: str
+    reviewed_by: str
     reason: Optional[str] = None
 
 
