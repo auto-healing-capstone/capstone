@@ -4,6 +4,8 @@ import math
 from datetime import datetime, timezone
 from typing import Optional
 
+from datetime import timedelta
+
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -81,7 +83,14 @@ def approve_recovery_action(
         incident = db.get(Incident, action.incident_id)
         if incident:
             incident.status = StatusEnum.RECOVERING
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to commit approve for action id=%s", recovery_action_id
+        )
+        raise
 
     try:
         broadcaster.broadcast(
@@ -112,7 +121,12 @@ def reject_recovery_action(
     action.reviewed_by = rejected_by
     if reason:
         action.log_snippet = reason
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to commit reject for action id=%s", recovery_action_id)
+        raise
     db.refresh(action)
     return RecoveryActionRead.model_validate(action)
 
@@ -148,27 +162,44 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     container_name = TARGET_NODE_MAP.get(target_node, target_node) or target_node
     action_type = recovery_action.action_type
 
-    if action_type == ActionTypeEnum.RESTART_CONTAINER:
-        is_successful = restart_container(container_name)
-    elif action_type == ActionTypeEnum.SCALE_OUT:
-        allowed_keys = {"mem_limit", "cpu_quota"}
-        safe_params = {
-            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
-        }
-        is_successful = update_container(container_name, **safe_params)
-    elif action_type == ActionTypeEnum.CLEAR_LOGS:
-        is_successful = clear_logs(container_name)
-    elif action_type == ActionTypeEnum.DOCKER_PRUNE:
-        is_successful = docker_prune()
-    elif action_type == ActionTypeEnum.RESTART_PROCESS:
-        allowed_keys = {"process"}
-        safe_params = {
-            k: v for k, v in (recovery_action.params or {}).items() if k in allowed_keys
-        }
-        is_successful = restart_process(container_name, **safe_params)
-    else:
-        logger.error("Unknown action type: %s", action_type)
+    log_snippet: Optional[str] = None
+    try:
+        if action_type == ActionTypeEnum.RESTART_CONTAINER:
+            is_successful = restart_container(container_name)
+        elif action_type == ActionTypeEnum.SCALE_OUT:
+            allowed_keys = {"mem_limit", "cpu_quota"}
+            safe_params = {
+                k: v
+                for k, v in (recovery_action.params or {}).items()
+                if k in allowed_keys
+            }
+            is_successful = update_container(container_name, **safe_params)
+        elif action_type == ActionTypeEnum.CLEAR_LOGS:
+            is_successful = clear_logs(container_name)
+        elif action_type == ActionTypeEnum.DOCKER_PRUNE:
+            is_successful = docker_prune()
+        elif action_type == ActionTypeEnum.RESTART_PROCESS:
+            allowed_keys = {"process"}
+            safe_params = {
+                k: v
+                for k, v in (recovery_action.params or {}).items()
+                if k in allowed_keys
+            }
+            is_successful = restart_process(container_name, **safe_params)
+        else:
+            logger.error("Unknown action type: %s", action_type)
+            is_successful = False
+    except Exception as exc:
+        logger.exception(
+            "Docker recovery failed for action id=%s: %s", recovery_action_id, exc
+        )
         is_successful = False
+        error_msg = f"Docker error: {exc}"
+        log_snippet = (
+            f"{recovery_action.log_snippet}\n{error_msg}"
+            if recovery_action.log_snippet
+            else error_msg
+        )
 
     recovery_action.executed_at = datetime.now(timezone.utc)
     recovery_action.is_successful = is_successful
@@ -177,11 +208,8 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         if is_successful
         else "Recovery execution failed"
     )
-    recovery_action.log_snippet = (
-        f"{recovery_action.log_snippet}\n{new_log}"
-        if recovery_action.log_snippet
-        else new_log
-    )
+    base = log_snippet if log_snippet is not None else recovery_action.log_snippet
+    recovery_action.log_snippet = f"{base}\n{new_log}" if base else new_log
     incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
     if is_successful:
         incident.resolved_at = datetime.now(timezone.utc)
@@ -215,3 +243,72 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 
     return is_successful
+
+
+def expire_pending_actions(db: Session) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    actions = (
+        db.execute(
+            select(RecoveryAction)
+            .join(Incident, RecoveryAction.incident_id == Incident.id)
+            .where(RecoveryAction.approval_status == ApprovalStatusEnum.PENDING)
+            .where(Incident.detected_at <= cutoff)
+        )
+        .scalars()
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    timeout_msg = "Auto-rejected: approval timeout"
+    for action in actions:
+        action.approval_status = ApprovalStatusEnum.REJECTED
+        action.reviewed_at = now
+        action.reviewed_by = "system"
+        action.log_snippet = (
+            f"{action.log_snippet}\n{timeout_msg}"
+            if action.log_snippet
+            else timeout_msg
+        )
+        incident = db.get(Incident, action.incident_id)
+        if incident is not None:
+            incident.status = StatusEnum.FAILED
+
+    logger.info("Auto-rejected %d pending actions due to timeout", len(actions))
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to commit auto-reject of pending actions")
+        return
+
+    for action in actions:
+        try:
+            broadcaster.broadcast(
+                "status_changed",
+                {
+                    "incident_id": action.incident_id,
+                    "status": StatusEnum.FAILED.value,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "SSE broadcast failed for expired action id=%s",
+                action.id,
+                exc_info=True,
+            )
+
+        try:
+            incident = db.get(Incident, action.incident_id)
+            if incident is None:
+                continue
+            container_name = TARGET_NODE_MAP.get(
+                incident.target_node, incident.target_node
+            )
+            send_recovery_result(container_name, action.action_type, False)
+        except Exception:
+            logger.warning(
+                "Slack notification failed for expired action id=%s",
+                action.id,
+                exc_info=True,
+            )

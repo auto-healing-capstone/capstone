@@ -14,6 +14,7 @@ alembic
 
 # AI Diagnosis (OpenAI)
 openai
+tenacity
 
 # Monitoring (Metrics Export)
 prometheus-client
