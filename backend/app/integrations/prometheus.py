@@ -1,11 +1,17 @@
 # backend/app/integrations/prometheus.py
 import logging
+import threading
+
+from cachetools import TTLCache, cached
 
 import httpx
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_metrics_cache: TTLCache = TTLCache(maxsize=1, ttl=10)
+_metrics_cache_lock = threading.Lock()
 
 _METRICS = {
     "cpu": "dummy_cpu_usage",
@@ -33,6 +39,7 @@ def _query_metric(client: httpx.Client, metric_name: str) -> float | None:
         return None
 
 
+@cached(cache=_metrics_cache, key=lambda: "metrics", lock=_metrics_cache_lock)
 def get_current_metrics() -> dict:
     with httpx.Client() as client:
         return {
