@@ -1,8 +1,9 @@
 # backend/app/services/incident_service.py
 import logging
+import math
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.events import broadcaster
@@ -15,7 +16,12 @@ from app.models.schema import (
     StatusEnum,
 )
 from app.schemas.alert import AlertmanagerPayload, SingleAlert
-from app.schemas.incident import AlertEventRead, IncidentRead
+from app.schemas.incident import (
+    AlertEventListResponse,
+    AlertEventRead,
+    IncidentListResponse,
+    IncidentRead,
+)
 from app.schemas.llm_action import ActionResult, AnalysisResult
 from app.schemas.recovery_action import RecoveryActionRead
 
@@ -94,33 +100,61 @@ def _update_alert_event(
 
 def get_incidents(
     db: Session,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    page_size: int = 20,
     status: Optional[StatusEnum] = None,
-) -> list[IncidentRead]:
-    stmt = select(Incident).order_by(Incident.detected_at.desc())
+) -> IncidentListResponse:
+    base_stmt = select(Incident)
     if status:
-        stmt = stmt.where(Incident.status == status)
-    stmt = stmt.offset(skip).limit(limit)
+        base_stmt = base_stmt.where(Incident.status == status)
+
+    total = db.execute(
+        select(func.count()).select_from(base_stmt.subquery())
+    ).scalar_one()
+    total_pages = math.ceil(total / page_size) if page_size else 1
+
+    stmt = base_stmt.order_by(Incident.detected_at.desc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     incidents = list(db.execute(stmt).scalars().all())
-    return [IncidentRead.model_validate(i) for i in incidents]
+
+    return IncidentListResponse(
+        items=[IncidentRead.model_validate(i) for i in incidents],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
 def get_alert_events(
     db: Session,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    page_size: int = 20,
     status: Optional[str] = None,
     incident_id: Optional[int] = None,
-) -> list[AlertEventRead]:
-    stmt = select(AlertEvent).order_by(AlertEvent.starts_at.desc())
+) -> AlertEventListResponse:
+    base_stmt = select(AlertEvent)
     if status:
-        stmt = stmt.where(AlertEvent.status == status)
+        base_stmt = base_stmt.where(AlertEvent.status == status)
     if incident_id is not None:
-        stmt = stmt.where(AlertEvent.incident_id == incident_id)
-    stmt = stmt.offset(skip).limit(limit)
+        base_stmt = base_stmt.where(AlertEvent.incident_id == incident_id)
+
+    total = db.execute(
+        select(func.count()).select_from(base_stmt.subquery())
+    ).scalar_one()
+    total_pages = math.ceil(total / page_size) if page_size else 1
+
+    stmt = base_stmt.order_by(AlertEvent.starts_at.desc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     alert_events = list(db.execute(stmt).scalars().all())
-    return [AlertEventRead.model_validate(e) for e in alert_events]
+
+    return AlertEventListResponse(
+        items=[AlertEventRead.model_validate(e) for e in alert_events],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
 def create_incident_from_llm_result(

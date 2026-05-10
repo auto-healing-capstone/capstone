@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.schema import StatusEnum
-from app.schemas.incident import IncidentRead
+from app.schemas.incident import IncidentListResponse, IncidentRead
 from app.schemas.recovery_action import RecoveryActionRead
 from app.services import incident_service
 
@@ -19,14 +19,14 @@ router = APIRouter()
 
 @router.get(
     "/incidents",
-    response_model=list[IncidentRead],
+    response_model=IncidentListResponse,
     status_code=http_status.HTTP_200_OK,
     summary="List incidents",
     description="Return incident history with optional status filter.",
 )
 def list_incidents(
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
+    page: int = Query(default=1, ge=1, description="Page number"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
     status: Optional[StatusEnum] = Query(
         default=None,
         description=(
@@ -35,9 +35,11 @@ def list_incidents(
         ),
     ),
     db: Session = Depends(get_db),
-) -> list[IncidentRead]:
+) -> IncidentListResponse:
     try:
-        return incident_service.get_incidents(db, skip=skip, limit=limit, status=status)
+        return incident_service.get_incidents(
+            db, page=page, page_size=page_size, status=status
+        )
     except Exception:
         logger.error("Failed to fetch incidents", exc_info=True)
         raise HTTPException(
