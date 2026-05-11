@@ -40,3 +40,11 @@ class PredictionRead(BaseModel):
     is_verified: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PredictionListResponse(BaseModel):
+    items: list[PredictionRead]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int

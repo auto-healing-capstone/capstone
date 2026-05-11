@@ -24,3 +24,6 @@ slack_sdk
 
 # Prediction
 apscheduler>=3.10.0
+
+# Caching
+cachetools

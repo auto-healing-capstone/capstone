@@ -1,9 +1,11 @@
 # backend/app/services/prediction_service.py
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Optional
 
 import requests
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -15,7 +17,12 @@ from app.models.schema import (
     SeverityEnum,
     StatusEnum,
 )
-from app.schemas.prediction import ForecastResponse, PredictionRead, RiskAssessment
+from app.schemas.prediction import (
+    ForecastResponse,
+    PredictionRead,
+    RiskAssessment,
+    PredictionListResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -148,21 +155,33 @@ def save_proactive_incident(
 
 def get_predictions(
     db: Session,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    page_size: int = 20,
     metric_type: Optional[MetricTypeEnum] = None,
     target_node: Optional[str] = None,
-) -> list[PredictionRead]:
-    from sqlalchemy import select
-
-    stmt = select(Prediction).order_by(Prediction.predicted_at.desc())
+) -> PredictionListResponse:
+    base_stmt = select(Prediction)
     if metric_type:
-        stmt = stmt.where(Prediction.metric_type == metric_type)
+        base_stmt = base_stmt.where(Prediction.metric_type == metric_type)
     if target_node:
-        stmt = stmt.where(Prediction.target_node == target_node)
-    stmt = stmt.offset(skip).limit(limit)
+        base_stmt = base_stmt.where(Prediction.target_node == target_node)
+
+    total = db.execute(
+        select(func.count()).select_from(base_stmt.subquery())
+    ).scalar_one()
+    total_pages = max(1, math.ceil(total / page_size))
+
+    stmt = base_stmt.order_by(Prediction.predicted_at.desc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     predictions = list(db.execute(stmt).scalars().all())
-    return [PredictionRead.model_validate(p) for p in predictions]
+
+    return PredictionListResponse(
+        items=[PredictionRead.model_validate(p) for p in predictions],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
 def run_prediction_job(db: Session) -> None:

@@ -7,7 +7,7 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.incident import AlertEventRead
+from app.schemas.incident import AlertEventListResponse
 from app.services import incident_service
 
 logger = logging.getLogger(__name__)
@@ -17,14 +17,14 @@ router = APIRouter()
 
 @router.get(
     "/alert-events",
-    response_model=list[AlertEventRead],
+    response_model=AlertEventListResponse,
     status_code=http_status.HTTP_200_OK,
     summary="List alert events",
     description="Return raw alert events with optional status and incident_id filters.",
 )
 def list_alert_events(
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
+    page: int = Query(default=1, ge=1, description="Page number"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
     status: Optional[str] = Query(
         default=None,
         pattern="^(firing|resolved)$",
@@ -35,12 +35,12 @@ def list_alert_events(
         description="Filter by linked incident ID",
     ),
     db: Session = Depends(get_db),
-) -> list[AlertEventRead]:
+) -> AlertEventListResponse:
     try:
         return incident_service.get_alert_events(
             db,
-            skip=skip,
-            limit=limit,
+            page=page,
+            page_size=page_size,
             status=status,
             incident_id=incident_id,
         )

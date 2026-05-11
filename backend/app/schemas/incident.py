@@ -6,7 +6,12 @@ from pydantic import BaseModel, ConfigDict
 
 from app.models.schema import IncidentTypeEnum, SeverityEnum, StatusEnum
 
-__all__ = ["AlertEventRead", "IncidentRead"]
+__all__ = [
+    "AlertEventRead",
+    "IncidentRead",
+    "IncidentListResponse",
+    "AlertEventListResponse",
+]
 
 
 class IncidentBase(BaseModel):
@@ -47,3 +52,19 @@ class IncidentRead(BaseModel):
     resolved_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class IncidentListResponse(BaseModel):
+    items: list[IncidentRead]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
+class AlertEventListResponse(BaseModel):
+    items: list[AlertEventRead]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
