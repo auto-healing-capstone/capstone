@@ -1,9 +1,11 @@
 # backend/app/services/prediction_service.py
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Optional
 
 import requests
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -157,13 +159,7 @@ def get_predictions(
     page_size: int = 20,
     metric_type: Optional[MetricTypeEnum] = None,
     target_node: Optional[str] = None,
-) -> "PredictionListResponse":
-    import math
-
-    from sqlalchemy import func, select
-
-    from app.schemas.prediction import PredictionListResponse
-
+) -> PredictionListResponse:
     base_stmt = select(Prediction)
     if metric_type:
         base_stmt = base_stmt.where(Prediction.metric_type == metric_type)
@@ -173,7 +169,7 @@ def get_predictions(
     total = db.execute(
         select(func.count()).select_from(base_stmt.subquery())
     ).scalar_one()
-    total_pages = math.ceil(total / page_size) if page_size else 1
+    total_pages = max(1, math.ceil(total / page_size))
 
     stmt = base_stmt.order_by(Prediction.predicted_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)

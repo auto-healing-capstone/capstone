@@ -111,7 +111,7 @@ def get_incidents(
     total = db.execute(
         select(func.count()).select_from(base_stmt.subquery())
     ).scalar_one()
-    total_pages = math.ceil(total / page_size) if page_size else 1
+    total_pages = max(1, math.ceil(total / page_size))
 
     stmt = base_stmt.order_by(Incident.detected_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
@@ -142,7 +142,7 @@ def get_alert_events(
     total = db.execute(
         select(func.count()).select_from(base_stmt.subquery())
     ).scalar_one()
-    total_pages = math.ceil(total / page_size) if page_size else 1
+    total_pages = max(1, math.ceil(total / page_size))
 
     stmt = base_stmt.order_by(AlertEvent.starts_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
