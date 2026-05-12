@@ -37,6 +37,8 @@ class IncidentTypeEnum(str, enum.Enum):
     HIGH_CPU = "HIGH_CPU"
     DB_CONNECTION = "DB_CONNECTION"
     NGINX_5XX = "NGINX_5XX"
+    MEMORY_LEAK = "MEMORY_LEAK"
+    FD_EXHAUSTION = "FD_EXHAUSTION"
 
 
 class StatusEnum(str, enum.Enum):
@@ -59,6 +61,10 @@ class MetricTypeEnum(str, enum.Enum):
     DISK = "DISK"
     MEMORY = "MEMORY"
     CPU = "CPU"
+    MEMORY_LEAK = "MEMORY_LEAK"
+    FD_RATIO = "FD_RATIO"
+    LT_MEMORY = "LT_MEMORY"
+    LT_DISK = "LT_DISK"
 
 
 class ActionTypeEnum(str, enum.Enum):

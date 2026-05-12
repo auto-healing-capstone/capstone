@@ -3,6 +3,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.db.session import SessionLocal
 from app.services import prediction_service
+from app.services import prediction_job as group_a_job
 
 scheduler = None
 
@@ -11,6 +12,7 @@ def scheduled_prediction_job() -> None:
     db = SessionLocal()
     try:
         prediction_service.run_prediction_job(db)
+        group_a_job.run_prediction_job(db)
     finally:
         db.close()
 
