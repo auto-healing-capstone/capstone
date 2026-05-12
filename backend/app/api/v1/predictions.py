@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.schema import MetricTypeEnum
-from app.schemas.prediction import PredictionRead
+from app.schemas.prediction import PredictionListResponse
 from app.services import prediction_service
 from app.services import prediction_job as group_a_job
 
@@ -36,7 +36,7 @@ def run_prediction_job(db: Session = Depends(get_db)) -> dict:
 
 @router.get(
     "/predictions",
-    response_model=list[PredictionRead],
+    response_model=PredictionListResponse,
     status_code=http_status.HTTP_200_OK,
     summary="List predictions",
     description=(
@@ -44,8 +44,8 @@ def run_prediction_job(db: Session = Depends(get_db)) -> dict:
     ),
 )
 def list_predictions(
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
+    page: int = Query(default=1, ge=1, description="Page number"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
     metric_type: Optional[MetricTypeEnum] = Query(
         default=None,
         description="Filter by metric type: CPU | MEMORY | DISK",
@@ -55,12 +55,12 @@ def list_predictions(
         description="Filter by target node name",
     ),
     db: Session = Depends(get_db),
-) -> list[PredictionRead]:
+) -> PredictionListResponse:
     try:
         return prediction_service.get_predictions(
             db,
-            skip=skip,
-            limit=limit,
+            page=page,
+            page_size=page_size,
             metric_type=metric_type,
             target_node=target_node,
         )

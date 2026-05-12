@@ -14,6 +14,7 @@ alembic
 
 # AI Diagnosis (OpenAI)
 openai
+tenacity
 
 # Monitoring (Metrics Export)
 prometheus-client
@@ -23,3 +24,6 @@ slack_sdk
 
 # Prediction
 apscheduler>=3.10.0
+
+# Caching
+cachetools
