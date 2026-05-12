@@ -14,6 +14,16 @@ cp .env.example .env
 - `POSTGRES_DB`
 - `DATABASE_URL`
 - 필요 시 `OPENAI_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`
+
+데모 환경은 `.env.demo`를 사용해 메트릭과 DB 기준값을 고정할 수 있습니다.
+
+```bash
+cp .env.demo .env
+python infra/scripts/prepare_demo.py --apply
+```
+
+복합 장애 시나리오와 데모 체크리스트는 `docs/failure-scenarios.md`를 참고하세요.
+
 ## Infra Load Test
 
 디스크/메모리 자원 변화를 안전하게 시뮬레이션하려면 아래 스크립트를 사용합니다.

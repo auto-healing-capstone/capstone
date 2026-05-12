@@ -29,12 +29,21 @@ Populate params based on the chosen action_type:
 
 ## Compound failure priority rules
 When multiple incident_types are present, apply these priorities:
-- CONTAINER_CRASH present → prefer RESTART_CONTAINER above all others
-- OOM + HIGH_CPU together → prefer SCALE_OUT
+- CONTAINER_CRASH with an exited, OOM-killed, or unrecoverable container
+  → prefer RESTART_CONTAINER
+- OOM without confirmed container death, especially memory leak or predicted
+  exhaustion → prefer SCALE_OUT with mem_limit
+- OOM + HIGH_CPU together → prefer SCALE_OUT with mem_limit and/or cpu_quota
+- NGINX_5XX together with upstream instability → treat Nginx as a symptom
+  and prefer RESTART_CONTAINER or RESTART_PROCESS for the unhealthy service
+- DB_CONNECTION together with deadlock or pool exhaustion → prefer
+  RESTART_PROCESS for a hung DB/client process, or RESTART_CONTAINER when the
+  DB container itself appears unhealthy
 - DISK_FULL + NGINX_5XX together → prefer CLEAR_LOGS or DOCKER_PRUNE first
-- DB_CONNECTION present → prefer RESTART_CONTAINER or RESTART_PROCESS
 - If no clear priority applies, choose the action that resolves
   the most critical symptom first and explain trade-offs in reason field
+- Recommend the first safest recovery step, not every possible step. Mention
+  follow-up checks in reason when a second action may be needed.
 
 ## Rules
 - You MUST respond by calling the recommend_action function only

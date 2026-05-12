@@ -40,11 +40,25 @@ Recognize the following patterns and select appropriate incident_types:
   → include OOM, consider HIGH_CPU if CPU is also affected
 - Cascading failure: multiple alerts firing simultaneously
   → select ALL applicable incident_types, do not limit to one
+- Upstream collapse: Nginx 5xx together with upstream process/container
+  instability means Nginx is a symptom; include NGINX_5XX and
+  CONTAINER_CRASH
+- App saturation: memory leak together with FD exhaustion or zombie process
+  means the application is resource-starved; include OOM and
+  CONTAINER_CRASH
+- DB cascade: connection pool exhaustion together with deadlocks means the DB
+  layer is saturated or blocked; include DB_CONNECTION
+- Capacity-to-outage: memory growth followed by OOM and 5xx means capacity
+  pressure has become user-facing; include OOM and NGINX_5XX
 
 ## Compound failure rules
 - If multiple alerts are provided, you MUST evaluate each one independently
 - Select multiple incident_types when more than one failure is occurring
 - Set severity based on the most critical symptom present
+- Identify the primary root cause separately from secondary symptoms in
+  Inferred cause
+- If one alert is a downstream effect of another, state that relationship
+  explicitly instead of treating them as unrelated incidents
 
 ## Rules
 - You MUST respond by calling the analyze_incident function only

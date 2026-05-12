@@ -29,7 +29,77 @@ simulate_*.py              agent/agent.py            Prometheus
 | 컨테이너 | `docker compose up -d` 로 기동 상태 |
 
 > **인코딩 주의 (Windows)**: 한글 경로가 포함된 디렉터리에서 psycopg2를 사용하는 스크립트는 cp949/UTF-8 충돌이 발생합니다.  
-> S2 스크립트는 `C:\tmp` 등 ASCII 경로에서 실행하세요.
+> S2 스크립트는 host psycopg2 연결 실패 시 `docker exec psql` 방식으로 자동 대체합니다.
+
+---
+
+## 데모 환경 고정 체크리스트
+
+> 시연 전에는 메트릭 상태와 포트 충돌을 통제해 예측 가능한 시작 상태를 만듭니다.
+
+### 1. 데모 환경값 고정
+
+```bash
+# Windows PowerShell
+Copy-Item .env.demo .env
+```
+
+`.env.demo`는 아래 값을 고정합니다.
+
+| 항목 | 데모 기본값 | 목적 |
+|------|-------------|------|
+| `POSTGRES_MAX_CONNECTIONS` | `100` | DB 커넥션 풀 시나리오 기준값 고정 |
+| `FORCE_CPU_USAGE` | `35` | dummy CPU 메트릭 안정화 |
+| `FORCE_MEMORY_USAGE` | `45` | dummy memory 메트릭 안정화 |
+| `FORCE_REQUEST_COUNT` | `180` | dummy request 메트릭 안정화 |
+| `AGENT_UPDATE_INTERVAL` | `5` | agent 루프 부하 완화 |
+| `AGENT_LOG_LEVEL` | `warning` | 반복 로그 억제 |
+| `DEMO_MODE` | `true` | agent 랜덤 메트릭 기본값 고정 |
+
+### 2. 포트/컨테이너 사전 점검
+
+```bash
+python infra/scripts/prepare_demo.py
+```
+
+점검 대상 포트:
+
+| 포트 | 서비스 |
+|------|--------|
+| `5432` | PostgreSQL |
+| `8080` | target_nginx |
+| `8081` | upstream_app |
+| `9100` | agent |
+| `9090` | Prometheus |
+| `9093` | Alertmanager |
+| `8000` | backend |
+
+> `8080`을 Airflow 등 다른 컨테이너가 점유하면 `target_nginx`가 시작되지 않습니다.
+
+### 3. 데모 상태 초기화
+
+```bash
+python infra/scripts/prepare_demo.py --apply
+```
+
+초기화 대상:
+
+| 상태 파일 | 초기화 내용 |
+|-----------|-------------|
+| `/tmp/auto-healing-scenarios/status.json` | 모든 장애 시나리오 메트릭 `0` |
+| `/tmp/auto-healing-load-test/status.json` | load test 메모리/디스크 메트릭 `0` |
+
+### 4. 모니터링 부하 최적화 상태
+
+| 항목 | 현재 설정 | 상태 |
+|------|-----------|------|
+| Prometheus scrape interval | `15s` | 완료 |
+| Prometheus evaluation interval | `15s` | 완료 |
+| Agent update interval | env 기반, 기본 `5s` | 완료 |
+| Agent 반복 로그 | `AGENT_LOG_LEVEL=debug`일 때만 출력 | 완료 |
+| Dummy CPU/memory/request | env 또는 `DEMO_MODE`로 고정 | 완료 |
+
+---
 
 ---
 
@@ -311,6 +381,84 @@ python infra/scripts/simulate_memory_leak.py --container upstream_app --target-m
 
 ---
 
+## 복합 장애 시나리오
+
+> 여러 단일 장애를 섞어 실제 운영처럼 "겉으로 보이는 증상"과 "우선 복구해야 할 원인"이 다른 상황을 검증합니다.  
+> 목표는 AI가 단일 알림에 끌려가지 않고 `incident_types`, severity, 첫 번째 복구 액션을 올바르게 고르는지 확인하는 것입니다.
+
+### C1. 업스트림 장애가 Nginx 5xx로 보이는 상황 (`upstream-collapse`)
+
+| 항목 | 내용 |
+|------|------|
+| 조합 | S1 Nginx 5xx + S6 좀비 프로세스 |
+| 실제 상황 | 앱 프로세스가 비정상 상태가 되면서 Nginx가 5xx를 반환 |
+| AI 판단 포인트 | Nginx 자체 장애가 아니라 upstream 앱 장애가 5xx로 전파된 것으로 판단 |
+| 기대 incident_types | `NGINX_5XX`, `CONTAINER_CRASH` |
+| 기대 우선 액션 | `RESTART_CONTAINER` 또는 `RESTART_PROCESS` |
+
+### C2. 앱 리소스 포화가 점진적으로 누적되는 상황 (`app-saturation`)
+
+| 항목 | 내용 |
+|------|------|
+| 조합 | S8 메모리 누수 + S7 FD 고갈 |
+| 실제 상황 | 앱이 죽지는 않았지만 메모리와 FD가 함께 고갈되어 장애 직전 상태 |
+| AI 판단 포인트 | 즉시 재시작보다 용량 압박/누수성 장애로 보고 확장 또는 제한 상향을 우선 고려 |
+| 기대 incident_types | `OOM`, `CONTAINER_CRASH` |
+| 기대 우선 액션 | `SCALE_OUT` |
+
+### C3. DB 커넥션 고갈 후 데드락이 이어지는 상황 (`db-cascade`)
+
+| 항목 | 내용 |
+|------|------|
+| 조합 | S2 커넥션 풀 고갈 + S5 DB 데드락 |
+| 실제 상황 | DB 연결 수가 한계에 가까운 상태에서 트랜잭션 경합까지 발생 |
+| AI 판단 포인트 | 단순 데드락 1건이 아니라 DB 계층 전체 포화/경합으로 판단 |
+| 기대 incident_types | `DB_CONNECTION` |
+| 기대 우선 액션 | `RESTART_PROCESS` 또는 `RESTART_CONTAINER` |
+
+### C4. 용량 부족이 실제 서비스 장애로 전파되는 상황 (`capacity-to-outage`)
+
+| 항목 | 내용 |
+|------|------|
+| 조합 | S8 메모리 누수 + S3 OOM Kill + S1 Nginx 5xx |
+| 실제 상황 | 메모리 누수가 OOM으로 이어지고, 그 결과 사용자 요청에 5xx가 발생 |
+| AI 판단 포인트 | 5xx는 결과이며 1차 원인은 메모리/OOM 계열임을 구분 |
+| 기대 incident_types | `OOM`, `NGINX_5XX` |
+| 기대 우선 액션 | OOMKilled 확인 시 `RESTART_CONTAINER`, 누수 단계면 `SCALE_OUT` |
+
+### C5. DB와 앱 리소스 압박이 동시에 발생하는 상황 (`mixed-control-plane`)
+
+| 항목 | 내용 |
+|------|------|
+| 조합 | S2 커넥션 풀 고갈 + S8 메모리 누수 + S7 FD 고갈 |
+| 실제 상황 | DB 계층과 앱 계층이 동시에 느려져 원인 우선순위가 모호한 상태 |
+| AI 판단 포인트 | 여러 알림을 독립 장애로 흩뜨리지 않고 가장 위험한 병목을 첫 복구 대상으로 선정 |
+| 기대 incident_types | `DB_CONNECTION`, `OOM`, `CONTAINER_CRASH` |
+| 기대 우선 액션 | DB가 critical이면 `RESTART_PROCESS`/`RESTART_CONTAINER`, 앱 포화가 우세하면 `SCALE_OUT` |
+
+```bash
+# 사용 가능한 복합 프로필 확인
+python infra/scripts/simulate_composite.py --list-profiles
+
+# 실행 전 스케줄 확인
+python infra/scripts/simulate_composite.py --profile upstream-collapse --dry-run
+
+# 복합 시나리오 실행
+python infra/scripts/simulate_composite.py --profile upstream-collapse
+python infra/scripts/simulate_composite.py --profile app-saturation
+python infra/scripts/simulate_composite.py --profile db-cascade
+python infra/scripts/simulate_composite.py --profile capacity-to-outage
+python infra/scripts/simulate_composite.py --profile mixed-control-plane
+```
+
+**운영 주의**:
+- 복합 시나리오는 기존 `simulate_*.py`를 별도 프로세스로 실행합니다.
+- 모든 시나리오는 같은 `SCENARIO_STATUS_FILE`에 메트릭을 기록하므로 Prometheus에는 여러 장애 메트릭이 동시에 노출됩니다.
+- `db-cascade`는 `psycopg2-binary`가 필요하며, Windows 한글 경로 인코딩 문제가 있으면 `C:\tmp` 등 ASCII 경로에서 실행하세요.
+- AI 평가는 "정답 액션 하나"만 보는 것이 아니라, 원인/증상 구분과 첫 복구 우선순위가 맞는지 함께 확인합니다.
+
+---
+
 ## 주요 파일 경로
 
 ```
@@ -326,6 +474,7 @@ infra/
     simulate_zombie.py              # S6
     simulate_fd_exhaustion.py       # S7
     simulate_memory_leak.py         # S8
+    simulate_composite.py           # 복합 장애 시나리오 실행기
     run_recovery.py                 # 복구 액션 통합 실행기
     update_resources.py             # update_resources 구현
     reload_nginx.py                 # reload_nginx 구현
