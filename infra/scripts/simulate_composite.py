@@ -164,6 +164,24 @@ def _start_step(step: ScenarioStep) -> subprocess.Popen:
     return proc
 
 
+def _terminate_running(running: list[tuple[ScenarioStep, subprocess.Popen]]) -> None:
+    for step, proc in running:
+        if proc.poll() is not None:
+            continue
+        print(f"[composite] terminate {step.name}", flush=True)
+        proc.terminate()
+
+    for step, proc in running:
+        if proc.poll() is not None:
+            continue
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            print(f"[composite] kill {step.name}", flush=True)
+            proc.kill()
+            proc.wait(timeout=5)
+
+
 def run_profile(profile: CompositeProfile, dry_run: bool = False) -> int:
     print(f"[composite] profile={profile.name}")
     print(f"[composite] {profile.description}")
@@ -176,20 +194,29 @@ def run_profile(profile: CompositeProfile, dry_run: bool = False) -> int:
     running: list[tuple[ScenarioStep, subprocess.Popen]] = []
     started_at = time.monotonic()
 
-    for step in profile.steps:
-        wait_seconds = step.delay - int(time.monotonic() - started_at)
-        if wait_seconds > 0:
-            print(f"[composite] wait {wait_seconds}s before {step.name}", flush=True)
-            time.sleep(wait_seconds)
-        running.append((step, _start_step(step)))
+    try:
+        for step in profile.steps:
+            wait_seconds = step.delay - int(time.monotonic() - started_at)
+            if wait_seconds > 0:
+                print(f"[composite] wait {wait_seconds}s before {step.name}", flush=True)
+                time.sleep(wait_seconds)
+            running.append((step, _start_step(step)))
 
-    failed = 0
-    for step, proc in running:
-        return_code = proc.wait()
-        status = "ok" if return_code == 0 else f"failed({return_code})"
-        print(f"[composite] done {step.name}: {status}", flush=True)
-        if return_code != 0:
-            failed += 1
+        failed = 0
+        for step, proc in running:
+            return_code = proc.wait()
+            status = "ok" if return_code == 0 else f"failed({return_code})"
+            print(f"[composite] done {step.name}: {status}", flush=True)
+            if return_code != 0:
+                failed += 1
+    except KeyboardInterrupt:
+        print("[composite] interrupted; cleaning up running steps", flush=True)
+        _terminate_running(running)
+        return 130
+    except Exception:
+        print("[composite] error; cleaning up running steps", flush=True)
+        _terminate_running(running)
+        raise
 
     if failed:
         print(f"[composite] profile finished with {failed} failed step(s)", flush=True)

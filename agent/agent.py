@@ -22,9 +22,21 @@ memory_leak_mb       = Gauge("infra_memory_leak_mb",       "Simulated memory lea
 
 LOAD_TEST_STATUS_FILE = os.getenv("LOAD_TEST_STATUS_FILE", "/tmp/auto-healing-load-test/status.json")
 SCENARIO_STATUS_FILE = os.getenv("SCENARIO_STATUS_FILE", "/tmp/auto-healing-scenarios/status.json")
-AGENT_UPDATE_INTERVAL = float(os.getenv("AGENT_UPDATE_INTERVAL", "5"))
 AGENT_LOG_LEVEL = os.getenv("AGENT_LOG_LEVEL", "warning").lower()
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float, minimum: float | None = None) -> float:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    try:
+        parsed = float(value)
+    except ValueError:
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    return parsed
 
 
 def _env_int(name: str, default: int) -> int:
@@ -88,7 +100,7 @@ def update_metrics():
         update_load_test_metrics()
         update_scenario_metrics()
         _log_debug("metrics updated")
-        time.sleep(max(1.0, AGENT_UPDATE_INTERVAL))
+        time.sleep(_env_float("AGENT_UPDATE_INTERVAL", 5.0, minimum=1.0))
 
 
 if __name__ == "__main__":
