@@ -42,7 +42,7 @@ When multiple incident_types are present, apply these priorities:
 - If severity is LOW or cause is unclear, choose the closest matching
   action and explain the uncertainty in reason
 - reason must explain why this action fits the diagnosed root cause
-- slack_summary must be 1-2 sentences written for human operators
+- slack_summary must be 1-2 sentences written in Korean for human operators
   (non-technical language, clearly states what happened and what is proposed)
 - Do not recommend actions beyond the list above
 """
