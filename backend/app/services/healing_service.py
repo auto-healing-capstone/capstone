@@ -177,6 +177,11 @@ def approve_recovery_action(
     ).scalar_one_or_none()
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
+    if action.approval_status != ApprovalStatusEnum.PENDING:
+        raise ValueError(
+            f"RecoveryAction id={recovery_action_id} is already "
+            f"{action.approval_status.value}"
+        )
 
     action.approval_status = ApprovalStatusEnum.APPROVED
     action.reviewed_at = datetime.now(timezone.utc)
@@ -219,6 +224,11 @@ def reject_recovery_action(
     ).scalar_one_or_none()
     if action is None:
         raise ValueError(f"RecoveryAction not found: id={recovery_action_id}")
+    if action.approval_status != ApprovalStatusEnum.PENDING:
+        raise ValueError(
+            f"RecoveryAction id={recovery_action_id} is already "
+            f"{action.approval_status.value}"
+        )
 
     action.approval_status = ApprovalStatusEnum.REJECTED
     action.reviewed_at = datetime.now(timezone.utc)
