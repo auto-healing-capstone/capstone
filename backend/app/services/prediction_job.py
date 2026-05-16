@@ -181,7 +181,10 @@ def save_proactive_incident(
         target_node="system",
         status=StatusEnum.DETECTED,
         ai_severity=severity,
-        ai_title=f"[{assessment.anomaly_level}] {assessment.metric_type.upper()} 이상 징후 예측",
+        ai_title=(
+            f"[{assessment.anomaly_level}] "
+            f"{assessment.metric_type.upper()} 이상 징후 예측"
+        ),
     )
     db.add(incident)
     db.flush()
