@@ -13,6 +13,7 @@ from app.api.v1 import (
     metrics,
     predictions,
     actions,
+    slack,
     sse,
 )  # 로컬
 from app.core.config import settings
@@ -65,6 +66,7 @@ app.include_router(alert_events.router, prefix=API_V1_PREFIX, tags=["Alert Event
 app.include_router(metrics.router, prefix=API_V1_PREFIX, tags=["Metrics"])
 app.include_router(actions.router, prefix=API_V1_PREFIX, tags=["Actions"])
 app.include_router(sse.router, tags=["SSE"])
+app.include_router(slack.router, prefix="/slack", tags=["Slack"])
 
 
 @app.get("/health", tags=["Health"])

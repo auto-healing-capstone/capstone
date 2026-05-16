@@ -310,7 +310,7 @@ def _run_proactive_llm_background(incident_id: int) -> None:
             logger.warning("SSE broadcast new_incident failed", exc_info=True)
 
         try:
-            send_approval_request(action.slack_summary)
+            send_approval_request(action.slack_summary, recovery_action.id)
         except Exception:
             logger.warning("Slack approval request failed", exc_info=True)
 

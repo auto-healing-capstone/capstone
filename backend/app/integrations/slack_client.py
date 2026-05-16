@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 _SLACK_API_URL = "https://slack.com/api/chat.postMessage"
 
 
-def send_approval_request(slack_summary: str) -> None:
+def send_approval_request(slack_summary: str, recovery_action_id: int) -> None:
     token = settings.SLACK_BOT_TOKEN
     channel = settings.SLACK_CHANNEL_ID
 
@@ -21,15 +21,43 @@ def send_approval_request(slack_summary: str) -> None:
         )
         return
 
-    text = (
-        f"🚨 AIOps 복구 승인 요청\n{slack_summary}\n\n"
-        "✅ 승인 또는 ❌ 거절 후 답장해주세요. (Week 5에서 버튼으로 대체 예정)"
-    )
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"🚨 AIOps 복구 승인 요청\n{slack_summary}",
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ 승인"},
+                    "action_id": "approve",
+                    "value": str(recovery_action_id),
+                    "style": "primary",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "❌ 거절"},
+                    "action_id": "reject",
+                    "value": str(recovery_action_id),
+                    "style": "danger",
+                },
+            ],
+        },
+    ]
 
     response = httpx.post(
         _SLACK_API_URL,
         headers={"Authorization": f"Bearer {token}"},
-        json={"channel": channel, "text": text},
+        json={
+            "channel": channel,
+            "text": f"🚨 AIOps 복구 승인 요청\n{slack_summary}",
+            "blocks": blocks,
+        },
     )
 
     if response.status_code != 200 or not response.json().get("ok"):
