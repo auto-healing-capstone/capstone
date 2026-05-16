@@ -33,6 +33,13 @@ async def slack_interactions(request: Request):
                 reason="Slack 버튼 승인",
                 db=db,
             )
+            try:
+                healing_service.execute_recovery(recovery_action_id, db)
+            except Exception:
+                logger.exception(
+                    "execute_recovery failed for recovery_action_id=%d",
+                    recovery_action_id,
+                )
         elif action_id == "reject":
             healing_service.reject_recovery_action(
                 recovery_action_id,
