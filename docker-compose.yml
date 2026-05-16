@@ -17,7 +17,8 @@ services:
 
   # 2. Target Server (장애 발생 및 복구 실험용 Nginx)
   nginx_target:
-    image: nginx:latest
+    build:
+      context: ./infra/nginx
     container_name: target_nginx
     ports:
       - "8080:80" # localhost:8080으로 접속하면 Nginx 화면이 나옴
