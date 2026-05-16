@@ -263,6 +263,17 @@ def _fallback_pipeline(
     return analysis, action
 
 
+async def run_llm_pipeline_from_message(
+    user_message: str,
+) -> tuple[AnalysisResult, ActionResult]:
+    try:
+        analysis = await _call_analyze(user_message)
+        action = await _call_recommend(analysis)
+    except Exception:
+        raise
+    return analysis, action
+
+
 async def run_llm_pipeline(
     alert_events: list[AlertEvent],
 ) -> tuple[AnalysisResult, ActionResult]:

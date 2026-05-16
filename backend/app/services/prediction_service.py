@@ -9,9 +9,7 @@ from typing import Any, Optional
 import requests
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from tenacity import RetryError
-
-from app.ai.llm_analyzer import _call_analyze, _call_recommend
+from app.ai.llm_analyzer import run_llm_pipeline_from_message
 from app.core.config import settings
 from app.core.events import broadcaster
 from app.db.session import SessionLocal
@@ -252,9 +250,8 @@ async def run_llm_pipeline_for_incident(
         f"Title: {incident.ai_title or 'N/A'}"
     )
     try:
-        analysis = await _call_analyze(user_message)
-        action = await _call_recommend(analysis)
-    except (RetryError, Exception) as exc:
+        analysis, action = await run_llm_pipeline_from_message(user_message)
+    except Exception as exc:
         logger.error(
             "LLM pipeline for proactive incident %d failed: %s",
             incident.id,
