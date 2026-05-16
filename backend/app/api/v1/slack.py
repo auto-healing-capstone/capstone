@@ -72,9 +72,7 @@ async def slack_interactions(request: Request):
                 reason="Slack 버튼 거절",
                 db=db,
             )
-            _send_slack_text(
-                f"❌ 거절되었습니다.\n액션 ID: {recovery_action_id}"
-            )
+            _send_slack_text(f"❌ 거절되었습니다.\n액션 ID: {recovery_action_id}")
     except Exception:
         logger.exception(
             "Failed to process Slack interaction for recovery_action_id=%d",
