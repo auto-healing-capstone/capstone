@@ -1,27 +1,38 @@
 # backend/app/services/prediction_service.py
+import asyncio
 import logging
 import math
+import threading
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from tenacity import RetryError
 
+from app.ai.llm_analyzer import _call_analyze, _call_recommend
 from app.core.config import settings
+from app.core.events import broadcaster
+from app.db.session import SessionLocal
+from app.integrations.slack_client import send_approval_request
 from app.models.schema import (
+    ActionTypeEnum,
+    ApprovalStatusEnum,
     Incident,
     IncidentTypeEnum,
     MetricTypeEnum,
     Prediction,
+    RecoveryAction,
     SeverityEnum,
     StatusEnum,
 )
+from app.schemas.llm_action import ActionResult, AnalysisResult
 from app.schemas.prediction import (
     ForecastResponse,
+    PredictionListResponse,
     PredictionRead,
     RiskAssessment,
-    PredictionListResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -184,7 +195,138 @@ def get_predictions(
     )
 
 
+def _fallback_for_proactive(incident: Incident) -> tuple[AnalysisResult, ActionResult]:
+    trigger = incident.trigger_metrics or {}
+    metric_type = trigger.get("metric_type", "").lower()
+    incident_types: list[IncidentTypeEnum] = list(
+        incident.incident_types or [IncidentTypeEnum.HIGH_CPU]
+    )
+    incident_type = incident_types[0]
+
+    if metric_type == "cpu":
+        action_type = ActionTypeEnum.SCALE_OUT
+        params: dict[str, Any] = {"cpu_quota": 50000}
+    elif metric_type == "memory":
+        action_type = ActionTypeEnum.RESTART_CONTAINER
+        params = {}
+    elif metric_type == "disk":
+        action_type = ActionTypeEnum.CLEAR_LOGS
+        params = {}
+    else:
+        action_type = ActionTypeEnum.RESTART_CONTAINER
+        params = {}
+
+    analysis = AnalysisResult(
+        ai_title=incident.ai_title or f"[Fallback] {metric_type.upper()} 예측",
+        ai_severity=incident.ai_severity or SeverityEnum.HIGH,
+        llm_analysis="LLM unavailable. Rule-based fallback applied.",
+        incident_types=incident_types,
+    )
+    action = ActionResult(
+        action_type=action_type,
+        reason="LLM fallback: rule-based selection",
+        slack_summary=(
+            f"[Fallback] {incident_type.value} predicted."
+            f" Applying {action_type.value}."
+        ),
+        params=params,
+    )
+    return analysis, action
+
+
+async def run_llm_pipeline_for_incident(
+    incident: Incident,
+) -> tuple[AnalysisResult, ActionResult]:
+    trigger = incident.trigger_metrics or {}
+    if incident.ai_severity is not None:
+        severity_str = incident.ai_severity.value
+    else:
+        severity_str = "UNKNOWN"
+    user_message = (
+        f"Proactive Incident (Prediction-based)\n"
+        f"Metric Type: {trigger.get('metric_type', 'unknown')}\n"
+        f"Peak Predicted Value: {trigger.get('peak_yhat', 0):.1f}%\n"
+        f"Threshold: {trigger.get('threshold', 0)}%\n"
+        f"Incident Type: {', '.join(t.value for t in incident.incident_types or [])}\n"
+        f"Severity: {severity_str}\n"
+        f"Title: {incident.ai_title or 'N/A'}"
+    )
+    try:
+        analysis = await _call_analyze(user_message)
+        action = await _call_recommend(analysis)
+    except (RetryError, Exception) as exc:
+        logger.error(
+            "LLM pipeline for proactive incident %d failed: %s",
+            incident.id,
+            exc,
+            exc_info=True,
+        )
+        return _fallback_for_proactive(incident)
+    return analysis, action
+
+
+def _run_proactive_llm_background(incident_id: int) -> None:
+    db = SessionLocal()
+    try:
+        incident = db.execute(
+            select(Incident).where(Incident.id == incident_id)
+        ).scalar_one_or_none()
+        if incident is None:
+            logger.warning("Proactive incident not found: id=%d", incident_id)
+            return
+
+        analysis, action = asyncio.run(run_llm_pipeline_for_incident(incident))
+
+        incident.status = StatusEnum.PENDING
+        incident.ai_title = analysis.ai_title
+        incident.ai_severity = analysis.ai_severity
+        incident.llm_analysis = {"analysis": analysis.llm_analysis}
+
+        recovery_action = RecoveryAction(
+            incident_id=incident.id,
+            action_type=action.action_type,
+            approval_status=ApprovalStatusEnum.PENDING,
+            params=action.params,
+        )
+        db.add(recovery_action)
+        db.commit()
+
+        try:
+            _severity = incident.ai_severity
+            if _severity is not None:
+                ai_severity_value = _severity.value
+            else:
+                ai_severity_value = None
+            broadcaster.broadcast(
+                "new_incident",
+                {
+                    "incident_id": incident.id,
+                    "ai_title": incident.ai_title,
+                    "ai_severity": ai_severity_value,
+                    "status": incident.status.value,
+                },
+            )
+        except Exception:
+            logger.warning("SSE broadcast new_incident failed", exc_info=True)
+
+        try:
+            send_approval_request(action.slack_summary)
+        except Exception:
+            logger.warning("Slack approval request failed", exc_info=True)
+
+    except Exception:
+        logger.error(
+            "Proactive LLM background failed for incident_id=%d",
+            incident_id,
+            exc_info=True,
+        )
+        db.rollback()
+    finally:
+        db.close()
+
+
 def run_prediction_job(db: Session) -> None:
+    proactive_incident_ids: list[int] = []
     try:
         for metric_type in METRIC_TYPES:
             forecast = fetch_forecast(metric_type)
@@ -195,9 +337,18 @@ def run_prediction_job(db: Session) -> None:
             prediction = save_prediction(assessment, db)
 
             if assessment.is_risky:
-                save_proactive_incident(assessment, prediction, db)
+                incident = save_proactive_incident(assessment, prediction, db)
+                proactive_incident_ids.append(incident.id)
 
         db.commit()
     except Exception:
         logger.exception("Prediction job failed")
         db.rollback()
+        return
+
+    for incident_id in proactive_incident_ids:
+        threading.Thread(
+            target=_run_proactive_llm_background,
+            args=(incident_id,),
+            daemon=True,
+        ).start()
