@@ -23,7 +23,7 @@ class ForecastResponse(BaseModel):
     threshold: Optional[float] = None
     anomaly_score: Optional[float] = None
     reason: Optional[str] = None
-    breach_time: Optional[str] = None          # "HH:MM" 형식
+    breach_time: Optional[str] = None  # "HH:MM" 형식
     breach_duration_min: Optional[int] = None
     recommended_action: Optional[str] = None
     forecast: list[ForecastPoint] = []

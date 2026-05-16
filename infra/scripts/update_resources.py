@@ -9,6 +9,7 @@ API:
   from update_resources import update_resources
   ok, msg = update_resources("target_nginx", memory="512m", cpus="1.5")
 """
+
 from __future__ import annotations
 
 import argparse
@@ -67,10 +68,14 @@ def update_resources(
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="런타임 컨테이너 리소스 제한 변경 (docker update)")
+    p = argparse.ArgumentParser(
+        description="런타임 컨테이너 리소스 제한 변경 (docker update)"
+    )
     p.add_argument("--container", required=True, help="컨테이너 이름 또는 ID")
     p.add_argument("--memory", help="메모리 상한 (예: 512m, 1g)")
-    p.add_argument("--memory-swap", dest="memory_swap", help="스왑 포함 상한 (-1: 무제한)")
+    p.add_argument(
+        "--memory-swap", dest="memory_swap", help="스왑 포함 상한 (-1: 무제한)"
+    )
     p.add_argument("--cpus", help="CPU 코어 수 상한 (예: 1.5)")
     return p.parse_args(argv)
 

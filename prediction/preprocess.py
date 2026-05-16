@@ -41,6 +41,6 @@ def transform_to_prophet_df(raw_data) -> pd.DataFrame:
     df["y"] = pd.to_numeric(df["y"], errors="coerce")
     df = df.dropna()
     df = df.sort_values("ds").reset_index(drop=True)
-    df = _fill_gaps(df)          # §3 gap 보간 (리샘플 포함)
+    df = _fill_gaps(df)  # §3 gap 보간 (리샘플 포함)
     df = _clip_outliers(df)
     return df

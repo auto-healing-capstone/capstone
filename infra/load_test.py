@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-
 MB = 1024 * 1024
 SAFE_MAX_MEMORY_MB = 512
 SAFE_MAX_DISK_MB = 1024
@@ -19,16 +18,15 @@ class LoadTester:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.memory_blocks: list[bytearray] = []
-        self.disk_file = (
-            Path(args.target_dir)
-            / f"resource-load-{int(time.time())}.bin"
-        )
+        self.disk_file = Path(args.target_dir) / f"resource-load-{int(time.time())}.bin"
         self.status_file = Path(args.status_file)
         self.stopped = False
 
     def validate(self) -> None:
         if self.args.memory_mb <= 0 and self.args.disk_mb <= 0:
-            raise ValueError("At least one of --memory-mb or --disk-mb must be greater than 0.")
+            raise ValueError(
+                "At least one of --memory-mb or --disk-mb must be greater than 0."
+            )
         if self.args.duration <= 0:
             raise ValueError("--duration must be greater than 0.")
         if self.args.memory_step_mb <= 0 or self.args.disk_chunk_mb <= 0:
@@ -86,7 +84,9 @@ class LoadTester:
                 file_obj.flush()
                 os.fsync(file_obj.fileno())
                 written_mb += chunk_mb
-                print(f"[load-test] Disk written: {written_mb}/{target_mb} MB -> {self.disk_file}")
+                print(
+                    f"[load-test] Disk written: {written_mb}/{target_mb} MB -> {self.disk_file}"
+                )
                 time.sleep(self.args.allocate_pause)
 
     def current_rss_mb(self) -> float:
@@ -167,9 +167,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Simulate memory and disk pressure for infra testing."
     )
-    parser.add_argument("--memory-mb", type=int, default=0, help="Amount of memory to reserve in MB.")
-    parser.add_argument("--disk-mb", type=int, default=0, help="Amount of disk to occupy in MB.")
-    parser.add_argument("--duration", type=int, default=60, help="How long to hold the load in seconds.")
+    parser.add_argument(
+        "--memory-mb", type=int, default=0, help="Amount of memory to reserve in MB."
+    )
+    parser.add_argument(
+        "--disk-mb", type=int, default=0, help="Amount of disk to occupy in MB."
+    )
+    parser.add_argument(
+        "--duration", type=int, default=60, help="How long to hold the load in seconds."
+    )
     parser.add_argument(
         "--memory-step-mb",
         type=int,

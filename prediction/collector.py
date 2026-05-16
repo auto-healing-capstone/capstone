@@ -4,16 +4,15 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-
 PROMETHEUS_URL = "http://localhost:9090/api/v1/query_range"
 
 COLLECTION_HOURS = {
-    "cpu":          168,
-    "memory":       168,
-    "lt_memory":    24,
-    "lt_disk":      72,
-    "memory_leak":  0.5,  # 시뮬레이션 환경: 단기 트렌드 감지용 (운영 시 24로 복원)
-    "fd_ratio":     0.5,
+    "cpu": 168,
+    "memory": 168,
+    "lt_memory": 24,
+    "lt_disk": 72,
+    "memory_leak": 0.5,  # 시뮬레이션 환경: 단기 트렌드 감지용 (운영 시 24로 복원)
+    "fd_ratio": 0.5,
 }
 
 # §2 Prometheus 쿼리 최적화: 동일 주기 내 중복 조회 방지
@@ -33,14 +32,14 @@ def get_prometheus_data(metric_name: str, hours: int = 24):
             if time.monotonic() < expires_at:
                 return data
 
-    end_time   = datetime.now()
+    end_time = datetime.now()
     start_time = end_time - timedelta(hours=hours)
 
     params = {
         "query": metric_name,
         "start": start_time.timestamp(),
-        "end":   end_time.timestamp(),
-        "step":  "1m",
+        "end": end_time.timestamp(),
+        "step": "1m",
     }
 
     try:
@@ -49,7 +48,9 @@ def get_prometheus_data(metric_name: str, hours: int = 24):
         results = response.json().get("data", {}).get("result", [])
 
         if not results:
-            print(f"[Collector] 메트릭 '{metric_name}'에 대한 데이터가 Prometheus에 없습니다.")
+            print(
+                f"[Collector] 메트릭 '{metric_name}'에 대한 데이터가 Prometheus에 없습니다."
+            )
             return []
 
         values = results[0].get("values", [])

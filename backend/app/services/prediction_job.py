@@ -38,20 +38,20 @@ _CIRCUIT_RESET_SECONDS = 300
 
 _LEVEL_TO_SEVERITY: dict[str, tuple[str, bool]] = {
     "CRITICAL": ("CRITICAL", True),
-    "WARNING":  ("HIGH",     True),
-    "WATCH":    ("MEDIUM",   False),
-    "CLEAR":    ("NONE",     False),
-    "UNKNOWN":  ("NONE",     False),
+    "WARNING": ("HIGH", True),
+    "WATCH": ("MEDIUM", False),
+    "CLEAR": ("NONE", False),
+    "UNKNOWN": ("NONE", False),
 }
 
 _METRIC_ENUM_MAP: dict[str, MetricTypeEnum] = {
     "memory_leak": MetricTypeEnum.MEMORY_LEAK,
-    "fd_ratio":    MetricTypeEnum.FD_RATIO,
+    "fd_ratio": MetricTypeEnum.FD_RATIO,
 }
 
 _INCIDENT_TYPE_MAP: dict[str, IncidentTypeEnum] = {
     "memory_leak": IncidentTypeEnum.MEMORY_LEAK,
-    "fd_ratio":    IncidentTypeEnum.FD_EXHAUSTION,
+    "fd_ratio": IncidentTypeEnum.FD_EXHAUSTION,
 }
 
 
@@ -77,12 +77,15 @@ def fetch_forecast(metric_type: str) -> Optional[ForecastResponse]:
             _circuit_open_until[metric_type] = time.monotonic() + _CIRCUIT_RESET_SECONDS
             logger.error(
                 "Circuit breaker OPENED for %s after %d consecutive failures",
-                metric_type, _failure_counts[metric_type],
+                metric_type,
+                _failure_counts[metric_type],
             )
         else:
             logger.exception("Failed to fetch forecast: metric_type=%s", metric_type)
     except Exception:
-        logger.exception("Failed to parse forecast response: metric_type=%s", metric_type)
+        logger.exception(
+            "Failed to parse forecast response: metric_type=%s", metric_type
+        )
     return None
 
 
@@ -168,11 +171,11 @@ def save_proactive_incident(
     incident = Incident(
         incident_types=[incident_type],
         trigger_metrics={
-            "peak_yhat":           assessment.peak_yhat,
-            "metric_type":         assessment.metric_type,
-            "anomaly_level":       assessment.anomaly_level,
-            "reason":              assessment.reason,
-            "recommended_action":  assessment.recommended_action,
+            "peak_yhat": assessment.peak_yhat,
+            "metric_type": assessment.metric_type,
+            "anomaly_level": assessment.anomaly_level,
+            "reason": assessment.reason,
+            "recommended_action": assessment.recommended_action,
             "breach_duration_min": assessment.breach_duration_min,
         },
         target_node="system",
@@ -220,11 +223,15 @@ def run_prediction_job(db: Session) -> None:
                 _watch_counter[metric_type] = _watch_counter.get(metric_type, 0) + 1
                 logger.info(
                     "WATCH count for %s: %d/%d",
-                    metric_type, _watch_counter[metric_type], _WATCH_INCIDENT_THRESHOLD,
+                    metric_type,
+                    _watch_counter[metric_type],
+                    _WATCH_INCIDENT_THRESHOLD,
                 )
             elif level in ("CLEAR", "UNKNOWN"):
                 if _watch_counter.get(metric_type, 0) > 0:
-                    logger.info("WATCH counter reset for %s (level=%s)", metric_type, level)
+                    logger.info(
+                        "WATCH counter reset for %s (level=%s)", metric_type, level
+                    )
                 _watch_counter[metric_type] = 0
 
             watch_triggered = (
@@ -241,11 +248,15 @@ def run_prediction_job(db: Session) -> None:
                     )
                 else:
                     if watch_triggered and not assessment.is_risky:
-                        assessment = assessment.model_copy(update={"severity": "MEDIUM", "is_risky": True})
+                        assessment = assessment.model_copy(
+                            update={"severity": "MEDIUM", "is_risky": True}
+                        )
                     incident = save_proactive_incident(assessment, prediction, db)
                     logger.info(
                         "Created incident %s for %s [%s]%s",
-                        incident.id, metric_type, assessment.anomaly_level,
+                        incident.id,
+                        metric_type,
+                        assessment.anomaly_level,
                         " (WATCH x3)" if watch_triggered else "",
                     )
                     if watch_triggered:

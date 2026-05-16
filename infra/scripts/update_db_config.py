@@ -13,6 +13,7 @@ API:
   from update_db_config import update_db_config
   ok, msg = update_db_config("aiops_postgres", "work_mem", "16MB")
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,25 +21,29 @@ import subprocess
 import sys
 
 # pg_reload_conf() 로 즉시 반영되는 파라미터
-_RELOAD_PARAMS: frozenset[str] = frozenset({
-    "work_mem",
-    "maintenance_work_mem",
-    "log_min_duration_statement",
-    "log_level",
-    "statement_timeout",
-    "idle_in_transaction_session_timeout",
-    "lock_timeout",
-    "temp_file_limit",
-})
+_RELOAD_PARAMS: frozenset[str] = frozenset(
+    {
+        "work_mem",
+        "maintenance_work_mem",
+        "log_min_duration_statement",
+        "log_level",
+        "statement_timeout",
+        "idle_in_transaction_session_timeout",
+        "lock_timeout",
+        "temp_file_limit",
+    }
+)
 
 # ALTER SYSTEM 가능하지만 컨테이너 재시작 필요한 파라미터
-_RESTART_PARAMS: frozenset[str] = frozenset({
-    "max_connections",
-    "shared_buffers",
-    "max_wal_size",
-    "wal_buffers",
-    "max_prepared_transactions",
-})
+_RESTART_PARAMS: frozenset[str] = frozenset(
+    {
+        "max_connections",
+        "shared_buffers",
+        "max_wal_size",
+        "wal_buffers",
+        "max_prepared_transactions",
+    }
+)
 
 
 def update_db_config(
@@ -60,10 +65,24 @@ def update_db_config(
     Returns:
         (True, 결과 메시지) 또는 (False, 에러 메시지)
     """
+
     def _psql(sql: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            ["docker", "exec", container, "psql", "-U", db_user, "-d", db_name, "-c", sql],
-            capture_output=True, text=True, timeout=15,
+            [
+                "docker",
+                "exec",
+                container,
+                "psql",
+                "-U",
+                db_user,
+                "-d",
+                db_name,
+                "-c",
+                sql,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
 
     # ALTER SYSTEM 실행
@@ -89,7 +108,10 @@ def update_db_config(
     # 알 수 없는 파라미터 → reload 시도
     reload = _psql("SELECT pg_reload_conf();")
     if reload.returncode == 0:
-        return True, f"SET {param}='{value}' 저장 및 reload 완료 (즉시 반영 여부 미보장)"
+        return (
+            True,
+            f"SET {param}='{value}' 저장 및 reload 완료 (즉시 반영 여부 미보장)",
+        )
     return True, f"SET {param}='{value}' 저장 완료 (재시작 필요할 수 있음)"
 
 
@@ -105,6 +127,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = _parse_args()
-    ok, msg = update_db_config(args.container, args.param, args.value, args.db_user, args.db_name)
+    ok, msg = update_db_config(
+        args.container, args.param, args.value, args.db_user, args.db_name
+    )
     print(msg)
     sys.exit(0 if ok else 1)

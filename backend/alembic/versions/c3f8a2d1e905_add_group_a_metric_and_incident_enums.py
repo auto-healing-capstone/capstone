@@ -5,6 +5,7 @@ Revises: 6aa45ceda9ec
 Create Date: 2026-05-05
 
 """
+
 from alembic import op
 
 revision = "c3f8a2d1e905"
@@ -13,11 +14,15 @@ branch_labels = None
 depends_on = None
 
 NEW_METRIC_VALUES = [
-    "MEMORY_LEAK", "FD_RATIO", "LT_MEMORY", "LT_DISK",
+    "MEMORY_LEAK",
+    "FD_RATIO",
+    "LT_MEMORY",
+    "LT_DISK",
 ]
 
 NEW_INCIDENT_VALUES = [
-    "MEMORY_LEAK", "FD_EXHAUSTION",
+    "MEMORY_LEAK",
+    "FD_EXHAUSTION",
 ]
 
 

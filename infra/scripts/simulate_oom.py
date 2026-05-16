@@ -8,6 +8,7 @@ CLI:
   python simulate_oom.py --container target_nginx --limit 64m
   python simulate_oom.py --container upstream_app --limit 32m --no-restore
 """
+
 from __future__ import annotations
 
 import argparse
@@ -104,8 +105,13 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="OOM Killer 시뮬레이션")
     p.add_argument("--container", default="target_nginx", help="대상 컨테이너")
     p.add_argument("--limit", default="64m", help="설정할 메모리 제한 (예: 64m, 128m)")
-    p.add_argument("--no-restore", dest="restore", action="store_false", default=True,
-                   help="시뮬레이션 후 메모리 제한 복원 생략")
+    p.add_argument(
+        "--no-restore",
+        dest="restore",
+        action="store_false",
+        default=True,
+        help="시뮬레이션 후 메모리 제한 복원 생략",
+    )
     return p.parse_args()
 
 

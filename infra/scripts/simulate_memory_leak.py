@@ -7,6 +7,7 @@ docker stats 를 통해 실제 메모리 사용량을 폴링해 상태 파일에
 CLI:
   python simulate_memory_leak.py --container upstream_app --target-mb 200 --hold 30
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,6 +28,7 @@ SCENARIO_STATUS_FILE = os.getenv(
 # 상태 파일 헬퍼
 # ---------------------------------------------------------------------------
 
+
 def _write_metric(key: str, value) -> None:
     path = Path(SCENARIO_STATUS_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,13 +46,13 @@ def _write_metric(key: str, value) -> None:
 # ---------------------------------------------------------------------------
 
 _UNIT_MB = {
-    "b":   1 / (1024 * 1024),
+    "b": 1 / (1024 * 1024),
     "kib": 1 / 1024,
     "mib": 1.0,
     "gib": 1024.0,
-    "kb":  1 / 1024,
-    "mb":  1.0,
-    "gb":  1024.0,
+    "kb": 1 / 1024,
+    "mb": 1.0,
+    "gb": 1024.0,
 }
 
 
@@ -65,7 +67,7 @@ def _parse_mem_mb(mem_str: str) -> float:
     if not m:
         return 0.0
     number = float(m.group(1))
-    unit   = m.group(2).lower()
+    unit = m.group(2).lower()
     factor = _UNIT_MB.get(unit, 1.0)
     return round(number * factor, 2)
 
@@ -74,10 +76,14 @@ def _parse_mem_mb(mem_str: str) -> float:
 # 현재 컨테이너 메모리 사용량 조회
 # ---------------------------------------------------------------------------
 
+
 def _get_mem_mb(container: str) -> float:
     cmd = [
-        "docker", "stats", "--no-stream",
-        "--format", "{{.MemUsage}}",
+        "docker",
+        "stats",
+        "--no-stream",
+        "--format",
+        "{{.MemUsage}}",
         container,
     ]
     try:
@@ -93,12 +99,15 @@ def _get_mem_mb(container: str) -> float:
 # 공개 시뮬레이션 함수
 # ---------------------------------------------------------------------------
 
+
 def simulate_memory_leak(
     container: str = "upstream_app",
     target_mb: int = 200,
     hold: int = 30,
 ) -> tuple[bool, str]:
-    print(f"[1] 메모리 누수 시뮬레이션 시작: container={container}, target={target_mb}MB, hold={hold}s")
+    print(
+        f"[1] 메모리 누수 시뮬레이션 시작: container={container}, target={target_mb}MB, hold={hold}s"
+    )
 
     # 컨테이너 내에서 실행할 Python 코드
     # target_mb * 2 를 sleep 총합으로 사용해 할당 완료 후 hold 유지
@@ -158,20 +167,28 @@ def simulate_memory_leak(
             proc.kill()
 
     _write_metric("memory_leak_mb", 0)
-    return True, f"메모리 누수 시뮬레이션 완료: 최대 {max_mem_mb:.1f}MB 사용 (target={target_mb}MB)"
+    return (
+        True,
+        f"메모리 누수 시뮬레이션 완료: 최대 {max_mem_mb:.1f}MB 사용 (target={target_mb}MB)",
+    )
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="점진적 메모리 누수 시뮬레이션")
-    p.add_argument("--container",  default="upstream_app", help="대상 컨테이너 이름")
-    p.add_argument("--target-mb",  dest="target_mb", type=int, default=200,
-                   help="누수 목표 메모리 (MB)")
-    p.add_argument("--hold",       type=int, default=30,
-                   help="목표 도달 후 유지 시간(초)")
+    p.add_argument("--container", default="upstream_app", help="대상 컨테이너 이름")
+    p.add_argument(
+        "--target-mb",
+        dest="target_mb",
+        type=int,
+        default=200,
+        help="누수 목표 메모리 (MB)",
+    )
+    p.add_argument("--hold", type=int, default=30, help="목표 도달 후 유지 시간(초)")
     return p.parse_args()
 
 

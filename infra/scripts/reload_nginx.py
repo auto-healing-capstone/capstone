@@ -15,6 +15,7 @@ API:
   from reload_nginx import reload_nginx
   ok, msg = reload_nginx("target_nginx", config_path="/path/to/new.conf")
 """
+
 from __future__ import annotations
 
 import argparse
@@ -52,7 +53,9 @@ def reload_nginx(
     def _exec(cmd: list[str]) -> subprocess.CompletedProcess:
         return subprocess.run(
             ["docker", "exec", container] + cmd,
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
 
     # 1) 문법 검증
@@ -72,8 +75,11 @@ def reload_nginx(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Nginx 무중단 설정 리로드")
     p.add_argument("--container", default="target_nginx", help="Nginx 컨테이너 이름")
-    p.add_argument("--config", dest="config_path",
-                   help="적용할 nginx.conf 경로 (없으면 현재 설정으로 리로드만)")
+    p.add_argument(
+        "--config",
+        dest="config_path",
+        help="적용할 nginx.conf 경로 (없으면 현재 설정으로 리로드만)",
+    )
     return p.parse_args(argv)
 
 
