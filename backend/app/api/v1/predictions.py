@@ -24,8 +24,15 @@ router = APIRouter()
 )
 def run_prediction_job(db: Session = Depends(get_db)) -> dict:
     try:
-        group_a_job.run_prediction_job(db)
+        result = group_a_job.run_prediction_job(db)
+        if result is False or result is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Prediction job failed",
+            )
         return {"status": "ok", "message": "Group A prediction job completed"}
+    except HTTPException:
+        raise
     except Exception:
         logger.error("Prediction job failed", exc_info=True)
         raise HTTPException(

@@ -120,11 +120,16 @@ def _retrain_with_changepoint(
         return
 
     # recovered_at 시각을 changepoint 힌트로 전달
-    forecast_metric(df, metric_type, extra_changepoints=[recovered_at])
+    forecast_df = forecast_metric(df, metric_type, extra_changepoints=[recovered_at])
     logger.info(
         "[Calibrator] %s 재학습 완료 (changepoint=%s)",
         metric_type,
         recovered_at.isoformat(),
+    )
+    logger.info(
+        "[Calibrator] %s 캘리브레이션 완료 (forecast_points=%d)",
+        metric_type,
+        len(forecast_df),
     )
 
 

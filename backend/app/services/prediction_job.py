@@ -128,9 +128,11 @@ def _has_active_incident(metric_type: str, db: Session) -> bool:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
     stmt = (
         select(Prediction)
+        .join(Incident, Prediction.incident_id == Incident.id)
         .where(Prediction.metric_type == metric_enum)
         .where(Prediction.incident_id.is_not(None))
         .where(Prediction.predicted_at >= cutoff)
+        .where(Incident.status.not_in([StatusEnum.RESOLVED, StatusEnum.FAILED]))
     )
     return db.execute(stmt).first() is not None
 
@@ -206,7 +208,7 @@ def verify_past_predictions(db: Session) -> None:
         logger.info("Verified %d predictions linked to RESOLVED incidents", len(rows))
 
 
-def run_prediction_job(db: Session) -> None:
+def run_prediction_job(db: Session) -> bool:
     try:
         for metric_type in METRIC_TYPES:
             forecast = fetch_forecast(metric_type)
@@ -267,6 +269,8 @@ def run_prediction_job(db: Session) -> None:
 
         verify_past_predictions(db)
         db.commit()
+        return True
     except Exception:
         logger.exception("Group A prediction job failed")
         db.rollback()
+        return False

@@ -16,8 +16,6 @@ class ForecastPoint(BaseModel):
 
 class ForecastResponse(BaseModel):
     metric: str
-    full_name: str
-    forecast: list[ForecastPoint]
     anomaly_level: str = "UNKNOWN"
     full_name: Optional[str] = None
     threshold: Optional[float] = None
