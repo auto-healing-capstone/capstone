@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import timedelta
 
 from sqlalchemy import select, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.integrations.docker_client import (
     clear_logs,
@@ -26,7 +26,13 @@ from app.models.schema import (
     RecoveryAction,
     StatusEnum,
 )
-from app.schemas.recovery_action import RecoveryActionListResponse, RecoveryActionRead
+from app.schemas.recovery_action import (
+    RecoveryActionFeedItem,
+    RecoveryActionFeedResponse,
+    RecoveryActionListResponse,
+    RecoveryActionRead,
+    ReviewResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +65,100 @@ def get_recovery_actions(
         page_size=page_size,
         total=total,
         total_pages=total_pages,
+    )
+
+
+def _map_feed_status(action: RecoveryAction) -> str:
+    if action.approval_status == ApprovalStatusEnum.PENDING:
+        return "pending"
+    if action.approval_status == ApprovalStatusEnum.REJECTED:
+        return "rejected"
+    if action.executed_at is None:
+        return "approved"
+    if action.is_successful is None:
+        return "running"
+    return "resolved" if action.is_successful else "failed"
+
+
+def _to_feed_item(action: RecoveryAction) -> RecoveryActionFeedItem:
+    incident = action.incident
+    incident_name = (incident.ai_title or incident.target_node) if incident else "Unknown"
+    target = (
+        (action.params or {}).get("target")
+        or (incident.target_node if incident else None)
+        or "unknown"
+    )
+    started_at = (
+        incident.detected_at.isoformat()
+        if incident and incident.detected_at
+        else ""
+    )
+    completed_at = action.executed_at.isoformat() if action.executed_at else None
+    return RecoveryActionFeedItem(
+        id=str(action.id),
+        incidentName=incident_name,
+        action=action.action_type.value,
+        target=target,
+        status=_map_feed_status(action),
+        startedAt=started_at,
+        completedAt=completed_at,
+        summary=action.log_snippet or "",
+    )
+
+
+def get_recovery_actions_feed(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[ApprovalStatusEnum] = None,
+) -> RecoveryActionFeedResponse:
+    count_q = select(func.count(RecoveryAction.id))
+    data_q = (
+        select(RecoveryAction)
+        .options(joinedload(RecoveryAction.incident))
+        .order_by(RecoveryAction.id.desc())
+    )
+    if status is not None:
+        count_q = count_q.where(RecoveryAction.approval_status == status)
+        data_q = data_q.where(RecoveryAction.approval_status == status)
+
+    total = db.execute(count_q).scalar_one()
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+    rows = db.execute(data_q.offset((page - 1) * page_size).limit(page_size)).scalars().all()
+
+    return RecoveryActionFeedResponse(
+        items=[_to_feed_item(r) for r in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+def review_recovery_action(
+    recovery_action_id: int,
+    decision: str,
+    reviewed_by: str,
+    reason: Optional[str],
+    db: Session,
+) -> ReviewResult:
+    if decision == "approve":
+        action = approve_recovery_action(recovery_action_id, reviewed_by, reason, db)
+        next_status = "approved"
+        message = "Recovery action approved."
+    else:
+        action = reject_recovery_action(recovery_action_id, reviewed_by, reason, db)
+        next_status = "rejected"
+        message = "Recovery action rejected."
+
+    return ReviewResult(
+        incidentId=action.incident_id or 0,
+        recoveryActionId=str(action.id),
+        decision=decision,
+        nextStatus=next_status,
+        reviewedAt=action.reviewed_at.isoformat() if action.reviewed_at else "",
+        reviewedBy=reviewed_by,
+        message=message,
     )
 
 

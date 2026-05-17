@@ -15,7 +15,7 @@ from app.models.schema import (
     RecoveryAction,
     StatusEnum,
 )
-from app.schemas.alert import AlertmanagerPayload, SingleAlert
+from app.schemas.alert import AlertFeedItem, AlertFeedListResponse, AlertmanagerPayload, SingleAlert
 from app.schemas.incident import (
     AlertEventListResponse,
     AlertEventRead,
@@ -150,6 +150,48 @@ def get_alert_events(
 
     return AlertEventListResponse(
         items=[AlertEventRead.model_validate(e) for e in alert_events],
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+def _alert_event_to_feed_item(event: AlertEvent) -> AlertFeedItem:
+    severity = event.severity.lower()
+    if severity not in ("critical", "warning", "info"):
+        severity = "info"
+    feed_status = "resolved" if event.status.lower() == "resolved" else "new"
+    return AlertFeedItem(
+        id=str(event.id),
+        title=event.alert_name,
+        message=event.summary or event.description or "",
+        severity=severity,
+        timestamp=event.starts_at.isoformat(),
+        source=event.instance,
+        target=event.instance,
+        status=feed_status,
+    )
+
+
+def get_alert_feed(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+) -> AlertFeedListResponse:
+    total = db.execute(select(func.count(AlertEvent.id))).scalar_one()
+    total_pages = max(1, math.ceil(total / page_size))
+
+    stmt = (
+        select(AlertEvent)
+        .order_by(AlertEvent.starts_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = list(db.execute(stmt).scalars().all())
+
+    return AlertFeedListResponse(
+        items=[_alert_event_to_feed_item(e) for e in rows],
         page=page,
         page_size=page_size,
         total=total,
