@@ -10,3 +10,19 @@ class CurrentMetricsResponse(BaseModel):
     memory: Optional[float] = None
     request_count: Optional[float] = None
     collected_at: datetime
+
+
+class MetricCardItem(BaseModel):
+    key: str
+    label: str
+    value: float
+    unit: str
+    change: str
+    trend: str
+
+
+class ChartPoint(BaseModel):
+    time: str
+    cpu: float
+    memory: float
+    disk: float
