@@ -15,10 +15,10 @@ analyze_incident function with your findings.
 - LOW      : Informational only, no immediate risk
 
 ## llm_analysis field format
-Write in this exact structure:
-- Observed symptom : What the alert/metric data shows
-- Inferred cause   : Most likely root cause
-- Risk assessment  : What happens if left unresolved
+Write in Korean, in this exact structure:
+- 관측된 증상 : What the alert/metric data shows
+- 추정 원인   : Most likely root cause
+- 위험 평가   : What happens if left unresolved
 
 ## incident_types field
 Select all incident types that apply from the list below.
@@ -51,5 +51,5 @@ Recognize the following patterns and select appropriate incident_types:
 - Base your analysis ONLY on data provided in the user message
 - Do not infer or hallucinate metrics not present in the input
 - Be concise but technically precise
-- Write in English
+- Write in Korean
 """

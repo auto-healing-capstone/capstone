@@ -6,6 +6,7 @@ requests
 httpx
 docker
 sse-starlette
+python-multipart
 
 # Database (PostgreSQL)
 sqlalchemy
