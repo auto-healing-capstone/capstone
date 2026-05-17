@@ -22,6 +22,36 @@ memory_leak_mb       = Gauge("infra_memory_leak_mb",       "Simulated memory lea
 
 LOAD_TEST_STATUS_FILE = os.getenv("LOAD_TEST_STATUS_FILE", "/tmp/auto-healing-load-test/status.json")
 SCENARIO_STATUS_FILE = os.getenv("SCENARIO_STATUS_FILE", "/tmp/auto-healing-scenarios/status.json")
+AGENT_LOG_LEVEL = os.getenv("AGENT_LOG_LEVEL", "warning").lower()
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float, minimum: float | None = None) -> float:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    try:
+        parsed = float(value)
+    except ValueError:
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    return parsed
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _log_debug(message: str) -> None:
+    if AGENT_LOG_LEVEL == "debug":
+        print(message)
 
 
 def update_load_test_metrics() -> None:
@@ -60,16 +90,17 @@ def update_scenario_metrics() -> None:
 
 def update_metrics():
     while True:
-        forced_cpu = os.getenv("FORCE_CPU_USAGE")
-        forced_memory = os.getenv("FORCE_MEMORY_USAGE")
+        default_cpu = 35 if DEMO_MODE else random.randint(10, 90)
+        default_memory = 45 if DEMO_MODE else random.randint(20, 80)
+        default_requests = 180 if DEMO_MODE else random.randint(100, 500)
 
-        cpu_usage.set(int(forced_cpu) if forced_cpu is not None and forced_cpu != "" else random.randint(10, 90))
-        memory_usage.set(int(forced_memory) if forced_memory is not None and forced_memory != "" else random.randint(20, 80))
-        request_count.set(random.randint(100, 500))
+        cpu_usage.set(_env_int("FORCE_CPU_USAGE", default_cpu))
+        memory_usage.set(_env_int("FORCE_MEMORY_USAGE", default_memory))
+        request_count.set(_env_int("FORCE_REQUEST_COUNT", default_requests))
         update_load_test_metrics()
         update_scenario_metrics()
-        print("metrics updated")
-        time.sleep(2)
+        _log_debug("metrics updated")
+        time.sleep(_env_float("AGENT_UPDATE_INTERVAL", 5.0, minimum=1.0))
 
 
 if __name__ == "__main__":

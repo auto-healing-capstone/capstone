@@ -42,7 +42,12 @@ services:
     environment:
       FORCE_CPU_USAGE: ${FORCE_CPU_USAGE:-}
       FORCE_MEMORY_USAGE: ${FORCE_MEMORY_USAGE:-}
+      FORCE_REQUEST_COUNT: ${FORCE_REQUEST_COUNT:-}
+      AGENT_UPDATE_INTERVAL: ${AGENT_UPDATE_INTERVAL:-5}
+      AGENT_LOG_LEVEL: ${AGENT_LOG_LEVEL:-warning}
+      DEMO_MODE: ${DEMO_MODE:-false}
       LOAD_TEST_STATUS_FILE: /tmp/auto-healing-load-test/status.json
+      SCENARIO_STATUS_FILE: /tmp/auto-healing-scenarios/status.json
     volumes:
       - ./agent:/app
       - ./infra:/infra

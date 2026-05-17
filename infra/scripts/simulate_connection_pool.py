@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -31,6 +32,7 @@ DEFAULT_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
 DEFAULT_USER = os.getenv("POSTGRES_USER", "postgres")
 DEFAULT_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 DEFAULT_DB = os.getenv("POSTGRES_DB", "postgres")
+DEFAULT_CONTAINER = os.getenv("POSTGRES_CONTAINER", "aiops_postgres")
 
 SCENARIO_STATUS_FILE = os.getenv(
     "SCENARIO_STATUS_FILE", "/tmp/auto-healing-scenarios/status.json"
@@ -57,7 +59,7 @@ def _open_conn(host, port, user, password, db):
             password=password, dbname=db,
             connect_timeout=5,
         )
-    except psycopg2.OperationalError:
+    except (psycopg2.OperationalError, UnicodeDecodeError):
         return None
 
 
@@ -70,6 +72,44 @@ def _query_max_connections(conn) -> int:
         return 0
 
 
+def _psql(container: str, user: str, db: str, sql: str) -> tuple[bool, str]:
+    try:
+        r = subprocess.run(
+            ["docker", "exec", "-i", container, "psql", "-U", user, "-d", db, "-tAc", sql],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        return r.returncode == 0, (r.stdout + r.stderr).strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False, ""
+
+
+def _query_max_connections_via_container(container: str, user: str, db: str) -> int:
+    ok, output = _psql(container, user, db, "SHOW max_connections;")
+    if not ok:
+        return 0
+    try:
+        return int(output.splitlines()[0].strip())
+    except (IndexError, ValueError):
+        return 0
+
+
+def _open_psql_session(container: str, user: str, db: str, duration: int):
+    try:
+        return subprocess.Popen(
+            [
+                "docker", "exec", "-i", container,
+                "psql", "-U", user, "-d", db, "-q",
+                "-c", f"SELECT pg_sleep({duration});",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return None
+
+
 def simulate_connection_pool(
     connections: int = 20,
     duration: int = 30,
@@ -78,15 +118,23 @@ def simulate_connection_pool(
     user: str = DEFAULT_USER,
     password: str = DEFAULT_PASSWORD,
     db: str = DEFAULT_DB,
+    container: str = DEFAULT_CONTAINER,
 ) -> tuple[bool, str]:
     print(f"[1] {connections}개 연결 동시 오픈 시도 (DB: {host}:{port}/{db})")
 
     active: list = []
     failed = 0
     max_conn = 0
+    use_container_sessions = False
 
     for i in range(connections):
-        conn = _open_conn(host, port, user, password, db)
+        conn = None if use_container_sessions else _open_conn(host, port, user, password, db)
+        if conn is None and i == 0:
+            use_container_sessions = True
+            max_conn = _query_max_connections_via_container(container, user, db)
+            print(f"  host psycopg2 연결 실패 → docker exec psql 세션으로 대체")
+        if use_container_sessions:
+            conn = _open_psql_session(container, user, db, duration + 10)
         if conn:
             if max_conn == 0:
                 max_conn = _query_max_connections(conn)
@@ -107,7 +155,10 @@ def simulate_connection_pool(
     print(f"[4] 모든 연결 해제")
     for conn in active:
         try:
-            conn.close()
+            if hasattr(conn, "close"):
+                conn.close()
+            elif hasattr(conn, "terminate"):
+                conn.terminate()
         except Exception:
             pass
 
@@ -125,6 +176,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--user", default=DEFAULT_USER)
     p.add_argument("--password", default=DEFAULT_PASSWORD)
     p.add_argument("--db", default=DEFAULT_DB)
+    p.add_argument("--container", default=DEFAULT_CONTAINER, help="psql fallback 대상 컨테이너")
     return p.parse_args()
 
 
@@ -133,6 +185,7 @@ if __name__ == "__main__":
     ok, msg = simulate_connection_pool(
         args.connections, args.duration,
         args.host, args.port, args.user, args.password, args.db,
+        args.container,
     )
     print(msg)
     sys.exit(0 if ok else 1)
