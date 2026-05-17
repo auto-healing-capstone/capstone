@@ -28,6 +28,7 @@ API 예시 (healing_service.py 에서):
   from infra.scripts.run_recovery import run_recovery
   ok, msg = run_recovery("restart_container", {"container": "target_nginx"})
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,14 +49,16 @@ from simulate_zombie import simulate_zombie
 from simulate_fd_exhaustion import simulate_fd_exhaustion
 from simulate_memory_leak import simulate_memory_leak
 
-
 # ── 개별 액션 함수 ──────────────────────────────────────────────────────────
+
 
 def restart_container(container: str) -> tuple[bool, str]:
     try:
         r = subprocess.run(
             ["docker", "restart", container],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if r.returncode == 0:
             return True, f"컨테이너 재시작 완료: {container}"
@@ -68,7 +71,11 @@ def restart_container(container: str) -> tuple[bool, str]:
 
 def cleanup_logs(container: str, path: str = "/var/log") -> tuple[bool, str]:
     cmd = [
-        "docker", "exec", container, "sh", "-c",
+        "docker",
+        "exec",
+        container,
+        "sh",
+        "-c",
         f"find {path} -name '*.log' -mtime +1 -delete 2>&1 && echo 'cleanup done'",
     ]
     try:
@@ -84,7 +91,11 @@ def cleanup_logs(container: str, path: str = "/var/log") -> tuple[bool, str]:
 
 def cleanup_disk(container: str, path: str = "/tmp") -> tuple[bool, str]:
     cmd = [
-        "docker", "exec", container, "sh", "-c",
+        "docker",
+        "exec",
+        container,
+        "sh",
+        "-c",
         f"find {path} -type f -mtime +0 -delete 2>&1 && echo 'cleanup done'",
     ]
     try:
@@ -101,55 +112,66 @@ def cleanup_disk(container: str, path: str = "/tmp") -> tuple[bool, str]:
 # ── 액션 라우팅 테이블 ──────────────────────────────────────────────────────
 
 _ACTIONS: dict[str, object] = {
-    "update_resources":  lambda p: update_resources(
+    "update_resources": lambda p: update_resources(
         p["container"], p.get("memory"), p.get("memory_swap"), p.get("cpus")
     ),
-    "reload_nginx":      lambda p: reload_nginx(
+    "reload_nginx": lambda p: reload_nginx(
         p.get("container", "target_nginx"), p.get("config")
     ),
     "restart_container": lambda p: restart_container(p["container"]),
-    "update_db_config":  lambda p: update_db_config(
-        p["container"], p["param"], p["value"],
-        p.get("db_user", "postgres"), p.get("db_name", "postgres"),
+    "update_db_config": lambda p: update_db_config(
+        p["container"],
+        p["param"],
+        p["value"],
+        p.get("db_user", "postgres"),
+        p.get("db_name", "postgres"),
     ),
-    "cleanup_logs":      lambda p: cleanup_logs(
-        p["container"], p.get("path", "/var/log")
-    ),
-    "cleanup_disk":      lambda p: cleanup_disk(
-        p["container"], p.get("path", "/tmp")
-    ),
+    "cleanup_logs": lambda p: cleanup_logs(p["container"], p.get("path", "/var/log")),
+    "cleanup_disk": lambda p: cleanup_disk(p["container"], p.get("path", "/tmp")),
     "simulate_nginx_5xx": lambda p: simulate_nginx_5xx(
-        p.get("duration", 30), p.get("nginx_url", "http://localhost:8080"),
+        p.get("duration", 30),
+        p.get("nginx_url", "http://localhost:8080"),
         p.get("restore", True),
     ),
     "simulate_conn_pool": lambda p: simulate_connection_pool(
-        p.get("connections", 20), p.get("duration", 30),
-        p.get("host", "localhost"), p.get("port", 5432),
-        p.get("user", "postgres"), p.get("password", ""), p.get("db", "postgres"),
+        p.get("connections", 20),
+        p.get("duration", 30),
+        p.get("host", "localhost"),
+        p.get("port", 5432),
+        p.get("user", "postgres"),
+        p.get("password", ""),
+        p.get("db", "postgres"),
     ),
-    "simulate_oom":      lambda p: simulate_oom(
-        p.get("container", "target_nginx"), p.get("limit", "64m"),
+    "simulate_oom": lambda p: simulate_oom(
+        p.get("container", "target_nginx"),
+        p.get("limit", "64m"),
         p.get("restore", True),
     ),
-    "simulate_deadlock":     lambda p: simulate_deadlock(
+    "simulate_deadlock": lambda p: simulate_deadlock(
         p.get("rounds", 3),
         p.get("container", "aiops_postgres"),
         p.get("user", "aiops_user"),
         p.get("db", "aiops_db"),
     ),
-    "simulate_zombie":       lambda p: simulate_zombie(
-        p.get("container", "upstream_app"), p.get("duration", 30), p.get("count", 8),
+    "simulate_zombie": lambda p: simulate_zombie(
+        p.get("container", "upstream_app"),
+        p.get("duration", 30),
+        p.get("count", 8),
     ),
     "simulate_fd_exhaustion": lambda p: simulate_fd_exhaustion(
-        p.get("container", "upstream_app"), p.get("duration", 30),
+        p.get("container", "upstream_app"),
+        p.get("duration", 30),
     ),
-    "simulate_memory_leak":  lambda p: simulate_memory_leak(
-        p.get("container", "upstream_app"), p.get("target_mb", 200), p.get("hold", 30),
+    "simulate_memory_leak": lambda p: simulate_memory_leak(
+        p.get("container", "upstream_app"),
+        p.get("target_mb", 200),
+        p.get("hold", 30),
     ),
 }
 
 
 # ── 공개 API ───────────────────────────────────────────────────────────────
+
 
 def run_recovery(action_type: str, params: dict) -> tuple[bool, str]:
     """
@@ -175,6 +197,7 @@ def run_recovery(action_type: str, params: dict) -> tuple[bool, str]:
 
 
 # ── CLI 인터페이스 ──────────────────────────────────────────────────────────
+
 
 def _build_cli() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -215,7 +238,9 @@ def _build_cli() -> argparse.ArgumentParser:
     nx.add_argument("--nginx-url", dest="nginx_url", default="http://localhost:8080")
     nx.add_argument("--no-restore", dest="restore", action="store_false", default=True)
 
-    cp = sub.add_parser("simulate_conn_pool", help="PostgreSQL 커넥션 풀 고갈 시뮬레이션")
+    cp = sub.add_parser(
+        "simulate_conn_pool", help="PostgreSQL 커넥션 풀 고갈 시뮬레이션"
+    )
     cp.add_argument("--connections", type=int, default=20, help="동시 연결 시도 수")
     cp.add_argument("--duration", type=int, default=30, help="연결 유지 시간(초)")
     cp.add_argument("--host", default="localhost")
@@ -240,7 +265,9 @@ def _build_cli() -> argparse.ArgumentParser:
     zb.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
     zb.add_argument("--count", type=int, default=8, help="생성할 좀비 자식 프로세스 수")
 
-    fd = sub.add_parser("simulate_fd_exhaustion", help="파일 디스크립터 고갈 시뮬레이션")
+    fd = sub.add_parser(
+        "simulate_fd_exhaustion", help="파일 디스크립터 고갈 시뮬레이션"
+    )
     fd.add_argument("--container", default="upstream_app")
     fd.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
 

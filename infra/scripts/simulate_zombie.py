@@ -7,6 +7,7 @@
 CLI:
   python simulate_zombie.py --container upstream_app --duration 30 --count 8
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,7 @@ SCENARIO_STATUS_FILE = os.getenv(
 # 상태 파일 헬퍼
 # ---------------------------------------------------------------------------
 
+
 def _write_metric(key: str, value) -> None:
     path = Path(SCENARIO_STATUS_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -42,10 +44,15 @@ def _write_metric(key: str, value) -> None:
 # 좀비 카운트 폴링
 # ---------------------------------------------------------------------------
 
+
 def _count_zombies(container: str) -> int:
     """컨테이너 내 좀비(Z) 상태 프로세스 수를 반환 (/proc 사용, ps 없어도 동작)."""
     cmd = [
-        "docker", "exec", container, "sh", "-c",
+        "docker",
+        "exec",
+        container,
+        "sh",
+        "-c",
         "grep -l 'Z (zombie)' /proc/*/status 2>/dev/null | wc -l",
     ]
     try:
@@ -61,12 +68,15 @@ def _count_zombies(container: str) -> int:
 # 공개 시뮬레이션 함수
 # ---------------------------------------------------------------------------
 
+
 def simulate_zombie(
     container: str = "upstream_app",
     duration: int = 30,
     count: int = 8,
 ) -> tuple[bool, str]:
-    print(f"[1] 좀비 프로세스 시뮬레이션 시작: container={container}, count={count}, duration={duration}s")
+    print(
+        f"[1] 좀비 프로세스 시뮬레이션 시작: container={container}, count={count}, duration={duration}s"
+    )
 
     # 컨테이너 내에서 실행할 Python 코드
     code = (
@@ -127,11 +137,12 @@ def simulate_zombie(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="좀비 프로세스 누적 시뮬레이션")
     p.add_argument("--container", default="upstream_app", help="대상 컨테이너 이름")
-    p.add_argument("--duration",  type=int, default=30,   help="시뮬레이션 지속 시간(초)")
-    p.add_argument("--count",     type=int, default=8,    help="생성할 좀비 자식 프로세스 수")
+    p.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
+    p.add_argument("--count", type=int, default=8, help="생성할 좀비 자식 프로세스 수")
     return p.parse_args()
 
 

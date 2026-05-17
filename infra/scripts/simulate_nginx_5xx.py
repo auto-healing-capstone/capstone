@@ -9,6 +9,7 @@ CLI:
   python simulate_nginx_5xx.py --duration 60 --nginx-url http://localhost:8080
   python simulate_nginx_5xx.py --no-restore   # upstream을 재시작하지 않음
 """
+
 from __future__ import annotations
 
 import argparse
@@ -92,8 +93,13 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Nginx 5xx 에러 시뮬레이션")
     p.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
     p.add_argument("--nginx-url", default=NGINX_URL, help="Nginx 엔드포인트 URL")
-    p.add_argument("--no-restore", dest="restore", action="store_false", default=True,
-                   help="시뮬레이션 후 upstream 재시작 생략")
+    p.add_argument(
+        "--no-restore",
+        dest="restore",
+        action="store_false",
+        default=True,
+        help="시뮬레이션 후 upstream 재시작 생략",
+    )
     return p.parse_args()
 
 

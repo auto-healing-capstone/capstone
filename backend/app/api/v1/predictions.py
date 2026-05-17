@@ -10,10 +10,35 @@ from app.db.session import get_db
 from app.models.schema import MetricTypeEnum
 from app.schemas.prediction import PredictionListResponse
 from app.services import prediction_service
+from app.services import prediction_job as group_a_job
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.post(
+    "/predictions/run",
+    status_code=http_status.HTTP_200_OK,
+    summary="Run prediction job manually",
+)
+def run_prediction_job(db: Session = Depends(get_db)) -> dict:
+    try:
+        result = group_a_job.run_prediction_job(db)
+        if result is False or result is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Prediction job failed",
+            )
+        return {"status": "ok", "message": "Group A prediction job completed"}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Prediction job failed", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Prediction job failed",
+        )
 
 
 @router.get(

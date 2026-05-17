@@ -4,6 +4,7 @@ import math
 from datetime import datetime, timezone
 from typing import Optional
 
+import requests
 from datetime import timedelta
 
 from sqlalchemy import select, func
@@ -327,6 +328,10 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
     incident.status = StatusEnum.RESOLVED if is_successful else StatusEnum.FAILED
     if is_successful:
         incident.resolved_at = datetime.now(timezone.utc)
+        _notify_prediction_calibration(
+            metric_type=incident.trigger_metrics.get("metric_type"),
+            recovered_at=incident.resolved_at,
+        )
 
     try:
         db.commit()
@@ -357,6 +362,30 @@ def execute_recovery(recovery_action_id: int, db: Session) -> bool:
         logger.warning("Slack recovery result notification failed", exc_info=True)
 
     return is_successful
+
+
+def _notify_prediction_calibration(
+    metric_type: str | None, recovered_at: datetime
+) -> None:
+    if not metric_type:
+        return
+    from app.core.config import settings
+
+    try:
+        requests.post(
+            f"{settings.PREDICTION_SERVER_URL}/calibrate/{metric_type}",
+            json={"recovered_at": recovered_at.isoformat(), "action_type": "recovery"},
+            timeout=3,
+        )
+        logger.info(
+            "Calibration scheduled for metric=%s at %s",
+            metric_type,
+            recovered_at.isoformat(),
+        )
+    except Exception:
+        logger.warning(
+            "Failed to notify prediction calibration (non-critical)", exc_info=True
+        )
 
 
 def expire_pending_actions(db: Session) -> None:

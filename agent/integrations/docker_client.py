@@ -2,6 +2,7 @@
 Docker socket을 통한 컨테이너 상태 조회 유틸리티.
 subprocess로 docker CLI를 호출하므로 docker Python SDK 불필요.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,7 +18,9 @@ def _docker(*args: str, timeout: int = 10) -> subprocess.CompletedProcess:
 def get_container_stats(container_name: str) -> dict | None:
     """컨테이너 CPU/메모리 사용량 반환 (docker stats --no-stream)."""
     r = _docker(
-        "stats", "--no-stream", "--format",
+        "stats",
+        "--no-stream",
+        "--format",
         '{"cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","mem_perc":"{{.MemPerc}}"}',
         container_name,
     )
@@ -46,7 +49,9 @@ def get_container_status(container_name: str) -> str | None:
 def list_oom_killed_containers() -> list[str]:
     """OOM Kill 당한 모든 컨테이너 이름 목록 반환."""
     r = _docker(
-        "ps", "-a", "--format",
+        "ps",
+        "-a",
+        "--format",
         '{"name":"{{.Names}}","status":"{{.Status}}"}',
     )
     if r.returncode != 0:

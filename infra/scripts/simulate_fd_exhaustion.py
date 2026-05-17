@@ -7,6 +7,7 @@
 CLI:
   python simulate_fd_exhaustion.py --container upstream_app --duration 30
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,6 +30,7 @@ _MAX_PRACTICAL_LIMIT = 8192
 # 상태 파일 헬퍼
 # ---------------------------------------------------------------------------
 
+
 def _write_metric(key: str, value) -> None:
     path = Path(SCENARIO_STATUS_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,6 +46,7 @@ def _write_metric(key: str, value) -> None:
 # ---------------------------------------------------------------------------
 # FD soft limit 조회
 # ---------------------------------------------------------------------------
+
 
 def _get_fd_soft_limit(container: str) -> int:
     """컨테이너의 FD soft limit (ulimit -n) 을 반환. unlimited → _MAX_PRACTICAL_LIMIT."""
@@ -65,11 +68,16 @@ def _get_fd_soft_limit(container: str) -> int:
 # 현재 FD 사용량 폴링
 # ---------------------------------------------------------------------------
 
+
 def _get_fd_count(container: str, marker: str) -> int:
     """마커 문자열로 식별한 python3 프로세스의 FD 수를 반환."""
     # marker 를 포함한 python3 프로세스의 PID 를 /proc 에서 찾는다
     cmd = [
-        "docker", "exec", container, "sh", "-c",
+        "docker",
+        "exec",
+        container,
+        "sh",
+        "-c",
         f"for p in /proc/[0-9]*/cmdline; do "
         f"  grep -q '{marker}' \"$p\" 2>/dev/null && "
         f"  echo $(ls $(dirname $p)/fd 2>/dev/null | wc -l) && break; "
@@ -87,6 +95,7 @@ def _get_fd_count(container: str, marker: str) -> int:
 # ---------------------------------------------------------------------------
 # 공개 시뮬레이션 함수
 # ---------------------------------------------------------------------------
+
 
 def simulate_fd_exhaustion(
     container: str = "upstream_app",
@@ -140,7 +149,9 @@ def simulate_fd_exhaustion(
         ratio = min(ratio, 1.0)
         if ratio > max_ratio:
             max_ratio = ratio
-        print(f"    elapsed={elapsed:3d}s | fd_count={fd_count}, limit={soft_limit}, ratio={ratio:.3f}")
+        print(
+            f"    elapsed={elapsed:3d}s | fd_count={fd_count}, limit={soft_limit}, ratio={ratio:.3f}"
+        )
         _write_metric("fd_usage_ratio", round(ratio, 4))
         time.sleep(3)
         elapsed += 3
@@ -158,17 +169,21 @@ def simulate_fd_exhaustion(
             proc.kill()
 
     _write_metric("fd_usage_ratio", 0.0)
-    return True, f"FD 고갈 시뮬레이션 완료: 최대 사용률 {max_ratio:.1%} (limit={soft_limit}, target={target_fds})"
+    return (
+        True,
+        f"FD 고갈 시뮬레이션 완료: 최대 사용률 {max_ratio:.1%} (limit={soft_limit}, target={target_fds})",
+    )
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="파일 디스크립터 고갈 시뮬레이션")
     p.add_argument("--container", default="upstream_app", help="대상 컨테이너 이름")
-    p.add_argument("--duration",  type=int, default=30,   help="시뮬레이션 지속 시간(초)")
+    p.add_argument("--duration", type=int, default=30, help="시뮬레이션 지속 시간(초)")
     return p.parse_args()
 
 

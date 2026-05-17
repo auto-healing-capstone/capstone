@@ -11,6 +11,7 @@ CLI:
 주의: DB의 max_connections가 낮을수록 (예: 5~10) 고갈이 빨리 발생합니다.
       .env의 POSTGRES_MAX_CONNECTIONS를 낮게 설정 후 테스트하세요.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,7 +24,10 @@ from pathlib import Path
 try:
     import psycopg2
 except ImportError:
-    print("psycopg2가 설치되어 있지 않습니다: pip install psycopg2-binary", file=sys.stderr)
+    print(
+        "psycopg2가 설치되어 있지 않습니다: pip install psycopg2-binary",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 DEFAULT_HOST = os.getenv("POSTGRES_HOST", "localhost")
@@ -53,8 +57,11 @@ def _write_metric(db_active: int, db_max: int) -> None:
 def _open_conn(host, port, user, password, db):
     try:
         return psycopg2.connect(
-            host=host, port=port, user=user,
-            password=password, dbname=db,
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            dbname=db,
             connect_timeout=5,
         )
     except psycopg2.OperationalError:
@@ -97,7 +104,9 @@ def simulate_connection_pool(
             print(f"  연결 {i+1:3d}: 실패  ← max_connections 초과")
         _write_metric(len(active), max_conn)
 
-    print(f"\n[2] 상태: 활성 {len(active)}개 / 실패 {failed}개 / max_connections {max_conn}")
+    print(
+        f"\n[2] 상태: 활성 {len(active)}개 / 실패 {failed}개 / max_connections {max_conn}"
+    )
     if failed > 0:
         print("  ✓ 커넥션 풀 고갈 확인됨")
 
@@ -131,8 +140,13 @@ def _parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_args()
     ok, msg = simulate_connection_pool(
-        args.connections, args.duration,
-        args.host, args.port, args.user, args.password, args.db,
+        args.connections,
+        args.duration,
+        args.host,
+        args.port,
+        args.user,
+        args.password,
+        args.db,
     )
     print(msg)
     sys.exit(0 if ok else 1)

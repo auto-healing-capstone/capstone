@@ -10,6 +10,7 @@ CLI:
   python simulate_deadlock.py --rounds 3
   python simulate_deadlock.py --rounds 5 --container aiops_postgres
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,8 @@ import time
 from pathlib import Path
 
 DEFAULT_CONTAINER = os.getenv("POSTGRES_CONTAINER", "aiops_postgres")
-DEFAULT_USER      = os.getenv("POSTGRES_USER",      "aiops_user")
-DEFAULT_DB        = os.getenv("POSTGRES_DB",        "aiops_db")
+DEFAULT_USER = os.getenv("POSTGRES_USER", "aiops_user")
+DEFAULT_DB = os.getenv("POSTGRES_DB", "aiops_db")
 
 SCENARIO_STATUS_FILE = os.getenv(
     "SCENARIO_STATUS_FILE", "/tmp/auto-healing-scenarios/status.json"
@@ -35,6 +36,7 @@ TABLE = "_deadlock_test"
 # ---------------------------------------------------------------------------
 # 상태 파일 헬퍼
 # ---------------------------------------------------------------------------
+
 
 def _write_metric(key: str, value) -> None:
     path = Path(SCENARIO_STATUS_FILE)
@@ -52,8 +54,21 @@ def _write_metric(key: str, value) -> None:
 # psql 헬퍼
 # ---------------------------------------------------------------------------
 
+
 def _psql_cmd(container: str, user: str, db: str) -> list[str]:
-    return ["docker", "exec", "-i", container, "psql", "-U", user, "-d", db, "--no-psqlrc", "-q"]
+    return [
+        "docker",
+        "exec",
+        "-i",
+        container,
+        "psql",
+        "-U",
+        user,
+        "-d",
+        db,
+        "--no-psqlrc",
+        "-q",
+    ]
 
 
 def _psql(container: str, user: str, db: str, sql: str) -> tuple[bool, str]:
@@ -61,7 +76,10 @@ def _psql(container: str, user: str, db: str, sql: str) -> tuple[bool, str]:
     try:
         r = subprocess.run(
             _psql_cmd(container, user, db),
-            input=sql, capture_output=True, text=True, timeout=15,
+            input=sql,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return r.returncode == 0, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
@@ -75,7 +93,10 @@ def _psql_stream(container: str, user: str, db: str, sql: str) -> tuple[int, str
     try:
         r = subprocess.run(
             _psql_cmd(container, user, db),
-            input=sql, capture_output=True, text=True, timeout=30,
+            input=sql,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         return r.returncode, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
@@ -87,6 +108,7 @@ def _psql_stream(container: str, user: str, db: str, sql: str) -> tuple[int, str
 # ---------------------------------------------------------------------------
 # 테스트 테이블 준비 / 정리
 # ---------------------------------------------------------------------------
+
 
 def _setup_table(container: str, user: str, db: str) -> tuple[bool, str]:
     sql = f"""
@@ -125,8 +147,12 @@ ROLLBACK;
 
 
 def _run_thread(
-    container: str, user: str, db: str,
-    sql: str, results: list, idx: int,
+    container: str,
+    user: str,
+    db: str,
+    sql: str,
+    results: list,
+    idx: int,
 ) -> None:
     rc, output = _psql_stream(container, user, db, sql)
     if "deadlock detected" in output.lower() or "deadlock" in output.lower():
@@ -142,13 +168,16 @@ def _run_thread(
 # 공개 시뮬레이션 함수
 # ---------------------------------------------------------------------------
 
+
 def simulate_deadlock(
     rounds: int = 3,
     container: str = DEFAULT_CONTAINER,
     user: str = DEFAULT_USER,
     db: str = DEFAULT_DB,
 ) -> tuple[bool, str]:
-    print(f"[1] DB 데드락 시뮬레이션 시작: container={container}, db={db}, rounds={rounds}")
+    print(
+        f"[1] DB 데드락 시뮬레이션 시작: container={container}, db={db}, rounds={rounds}"
+    )
 
     ok, msg = _setup_table(container, user, db)
     if not ok:
@@ -179,7 +208,9 @@ def simulate_deadlock(
 
         round_deadlocks = results[:2].count("deadlock")
         total_deadlocks += round_deadlocks
-        print(f"    A={results[0]}, B={results[1]} | round_dl={round_deadlocks}, total={total_deadlocks}")
+        print(
+            f"    A={results[0]}, B={results[1]} | round_dl={round_deadlocks}, total={total_deadlocks}"
+        )
         if round_deadlocks == 0:
             # 디버그 출력 표시
             print(f"    [A output] {results[2][:200]}")
@@ -200,12 +231,15 @@ def simulate_deadlock(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="PostgreSQL DB 데드락 시뮬레이션")
-    p.add_argument("--rounds",    type=int, default=3,             help="데드락 반복 횟수")
-    p.add_argument("--container", default=DEFAULT_CONTAINER,       help="PostgreSQL 컨테이너 이름")
-    p.add_argument("--user",      default=DEFAULT_USER,            help="DB 사용자")
-    p.add_argument("--db",        default=DEFAULT_DB,              help="DB 이름")
+    p.add_argument("--rounds", type=int, default=3, help="데드락 반복 횟수")
+    p.add_argument(
+        "--container", default=DEFAULT_CONTAINER, help="PostgreSQL 컨테이너 이름"
+    )
+    p.add_argument("--user", default=DEFAULT_USER, help="DB 사용자")
+    p.add_argument("--db", default=DEFAULT_DB, help="DB 이름")
     return p.parse_args()
 
 
