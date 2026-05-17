@@ -82,16 +82,16 @@ def _map_feed_status(action: RecoveryAction) -> str:
 
 def _to_feed_item(action: RecoveryAction) -> RecoveryActionFeedItem:
     incident = action.incident
-    incident_name = (incident.ai_title or incident.target_node) if incident else "Unknown"
+    incident_name = (
+        (incident.ai_title or incident.target_node) if incident else "Unknown"
+    )
     target = (
         (action.params or {}).get("target")
         or (incident.target_node if incident else None)
         or "unknown"
     )
     started_at = (
-        incident.detected_at.isoformat()
-        if incident and incident.detected_at
-        else ""
+        incident.detected_at.isoformat() if incident and incident.detected_at else ""
     )
     completed_at = action.executed_at.isoformat() if action.executed_at else None
     return RecoveryActionFeedItem(
@@ -124,7 +124,11 @@ def get_recovery_actions_feed(
 
     total = db.execute(count_q).scalar_one()
     total_pages = math.ceil(total / page_size) if total > 0 else 1
-    rows = db.execute(data_q.offset((page - 1) * page_size).limit(page_size)).scalars().all()
+    rows = (
+        db.execute(data_q.offset((page - 1) * page_size).limit(page_size))
+        .scalars()
+        .all()
+    )
 
     return RecoveryActionFeedResponse(
         items=[_to_feed_item(r) for r in rows],

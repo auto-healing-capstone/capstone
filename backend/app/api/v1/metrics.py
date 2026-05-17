@@ -133,7 +133,9 @@ def get_metrics_chart() -> list[ChartPoint]:
                 }
             points[key]["memory"] = round(val, 1)
 
-        return [ChartPoint(**p) for p in sorted(points.values(), key=lambda x: x["time"])]
+        return [
+            ChartPoint(**p) for p in sorted(points.values(), key=lambda x: x["time"])
+        ]
     except Exception:
         logger.error("Failed to fetch metric chart", exc_info=True)
         raise HTTPException(

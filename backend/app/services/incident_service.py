@@ -15,7 +15,12 @@ from app.models.schema import (
     RecoveryAction,
     StatusEnum,
 )
-from app.schemas.alert import AlertFeedItem, AlertFeedListResponse, AlertmanagerPayload, SingleAlert
+from app.schemas.alert import (
+    AlertFeedItem,
+    AlertFeedListResponse,
+    AlertmanagerPayload,
+    SingleAlert,
+)
 from app.schemas.incident import (
     AlertEventListResponse,
     AlertEventRead,

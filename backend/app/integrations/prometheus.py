@@ -70,5 +70,7 @@ def get_metric_range(
             if result:
                 return [(float(v[0]), float(v[1])) for v in result[0].get("values", [])]
     except Exception:
-        logger.warning("Failed to query Prometheus range: %s", metric_name, exc_info=True)
+        logger.warning(
+            "Failed to query Prometheus range: %s", metric_name, exc_info=True
+        )
     return []
