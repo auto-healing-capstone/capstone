@@ -41,6 +41,25 @@ class SingleAlert(BaseModel):
         return self.labels.get("severity", "none")
 
 
+class AlertFeedItem(BaseModel):
+    id: str
+    title: str
+    message: str
+    severity: str
+    timestamp: str
+    source: Optional[str] = None
+    target: Optional[str] = None
+    status: Optional[str] = None
+
+
+class AlertFeedListResponse(BaseModel):
+    items: list[AlertFeedItem]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class AlertmanagerPayload(BaseModel):
     version: str
     groupKey: str

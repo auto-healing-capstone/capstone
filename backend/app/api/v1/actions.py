@@ -11,9 +11,11 @@ from app.models.schema import ApprovalStatusEnum
 from app.schemas.recovery_action import (
     ApproveRequest,
     HealRequest,
-    RecoveryActionListResponse,
+    RecoveryActionFeedResponse,
     RecoveryActionRead,
     RejectRequest,
+    ReviewRequest,
+    ReviewResult,
 )
 from app.services import healing_service
 
@@ -30,7 +32,7 @@ def _require_heal_key(x_api_key: Optional[str] = Header(None)) -> None:
         )
 
 
-@router.get("/recovery-actions", response_model=RecoveryActionListResponse)
+@router.get("/recovery-actions", response_model=RecoveryActionFeedResponse)
 def list_recovery_actions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -38,11 +40,35 @@ def list_recovery_actions(
     db: Session = Depends(get_db),
 ):
     try:
-        return healing_service.get_recovery_actions(
+        return healing_service.get_recovery_actions_feed(
             db, page=page, page_size=page_size, status=approval_status
         )
     except Exception:
         logger.exception("Failed to list recovery actions")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.post("/recovery-actions/{id}/review", response_model=ReviewResult)
+def review_recovery_action(
+    id: int,
+    body: ReviewRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return healing_service.review_recovery_action(
+            recovery_action_id=id,
+            decision=body.decision,
+            reviewed_by=body.requestedBy,
+            reason=body.reason,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception:
+        logger.exception("Failed to review recovery action id=%s", id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
