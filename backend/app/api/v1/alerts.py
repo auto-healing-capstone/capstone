@@ -3,7 +3,7 @@ import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from sqlalchemy import select
@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.ai.llm_analyzer import run_llm_pipeline
 from app.db.session import SessionLocal, get_db
 from app.models.alert_event import AlertEvent
-from app.schemas.alert import AlertmanagerPayload
+from app.schemas.alert import AlertFeedListResponse, AlertmanagerPayload
 from app.schemas.incident import AlertEventRead
 from app.services import incident_service
 from app.services.incident_service import create_incident_from_llm_result
@@ -76,6 +76,27 @@ def receive_alert(
         return alert_events
     except Exception:
         logger.error("Failed to persist alert events from payload", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.get(
+    "/alerts/feed",
+    response_model=AlertFeedListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Alert feed for dashboard",
+)
+def get_alert_feed(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> AlertFeedListResponse:
+    try:
+        return incident_service.get_alert_feed(db, page=page, page_size=page_size)
+    except Exception:
+        logger.error("Failed to fetch alert feed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
