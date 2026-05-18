@@ -1,6 +1,7 @@
 # backend/app/services/incident_service.py
 import logging
 import math
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -251,6 +252,11 @@ def create_incident_from_llm_result(
         )
         db.add(recovery_action)
         db.commit()
+        logger.info(
+            "[TIMING] Incident created at %s id=%s",
+            datetime.now(timezone.utc).isoformat(),
+            incident.id,
+        )
     except Exception:
         db.rollback()
         logger.error("Incident creation transaction failed", exc_info=True)

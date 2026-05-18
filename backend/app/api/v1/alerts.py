@@ -1,5 +1,6 @@
 # backend/app/api/v1/alerts.py
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -35,6 +36,9 @@ def receive_alert(
         )
     try:
         alert_events = incident_service.create_alert_events_from_payload(payload, db)
+        logger.info(
+            "[TIMING] Alert received at %s", datetime.now(timezone.utc).isoformat()
+        )
         background_tasks.add_task(run_llm_background, [r.id for r in alert_events])
         return alert_events
     except Exception:

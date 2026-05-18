@@ -134,6 +134,7 @@ ACTION_PARAMS = {
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
 
+
 def _rand_dt(start: datetime, end: datetime) -> datetime:
     delta = int((end - start).total_seconds())
     return start + timedelta(seconds=random.randint(0, delta))
@@ -144,6 +145,7 @@ def _minutes(dt: datetime, lo: int, hi: int) -> datetime:
 
 
 # ── 시드 로직 ─────────────────────────────────────────────────────────────────
+
 
 def seed():
     random.shuffle(STATUS_POOL)
@@ -161,9 +163,7 @@ def seed():
             inc_type = TYPE_POOL[i % len(TYPE_POOL)]
             detected_at = _rand_dt(START, END)
             resolved_at = (
-                _minutes(detected_at, 5, 30)
-                if status == StatusEnum.RESOLVED
-                else None
+                _minutes(detected_at, 5, 30) if status == StatusEnum.RESOLVED else None
             )
 
             trigger_alert = {
@@ -224,7 +224,9 @@ def seed():
                 StatusEnum.RECOVERING,
             )
             approval_status = (
-                ApprovalStatusEnum.APPROVED if is_approved else ApprovalStatusEnum.PENDING
+                ApprovalStatusEnum.APPROVED
+                if is_approved
+                else ApprovalStatusEnum.PENDING
             )
             reviewed_at = _minutes(detected_at, 2, 5) if is_approved else None
             reviewed_by = "admin" if is_approved else None
