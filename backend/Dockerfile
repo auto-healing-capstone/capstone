@@ -27,4 +27,4 @@ COPY . .
 EXPOSE 8000
 
 # 9. FastAPI 서버 실행 명령어 (app 폴더 안의 main.py 안의 app 객체를 실행)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
