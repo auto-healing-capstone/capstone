@@ -152,6 +152,7 @@ class Prediction(Base):
         DateTime(timezone=True), index=True, nullable=True
     )
 
+    peak_yhat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 

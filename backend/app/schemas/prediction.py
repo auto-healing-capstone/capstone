@@ -49,6 +49,7 @@ class PredictionRead(BaseModel):
     metric_type: MetricTypeEnum
     predicted_at: datetime
     expected_breach: Optional[datetime] = None
+    peak_yhat: Optional[float] = None
     confidence: Optional[float] = None
     is_verified: bool
 

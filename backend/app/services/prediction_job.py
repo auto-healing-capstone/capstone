@@ -147,6 +147,7 @@ def save_prediction(assessment: RiskAssessment, db: Session) -> Prediction:
         metric_type=metric_enum,
         predicted_at=datetime.now(timezone.utc),
         expected_breach=assessment.expected_breach,
+        peak_yhat=assessment.peak_yhat,
         confidence=assessment.confidence,
         is_verified=False,
         incident_id=None,
